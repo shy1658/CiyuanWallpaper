@@ -1,5 +1,6 @@
 import { http } from '@kit.NetworkKit';
 import { image } from '@kit.ImageKit';
+import { BusinessError } from '@ohos.base';
 
 /**
  * 图片字节缓存与加载。
@@ -60,17 +61,41 @@ export class ImageByteCache {
     return list;
   }
 
-  /** 实际下载：带浏览器 UA 与 Accept，避免个别图床按 UA 拦截 */
+  /**
+   * 实际下载：带浏览器 UA 与 Accept，避免个别图床按 UA 拦截。
+   *
+   * 两段式路径：
+   * 1. request() 快路径：适用于绝大多数图片（缩略图与 5MB 以内原图）；
+   * 2. 若响应体超过 request() 的接收上限（API < 23 为 5MB，错误码 2300063），
+   *    自动切 requestInStream 流式重试——API < 23 上即使调大 maxLimit 也无效，
+   *    流式是官方唯一能突破 5MB 的方案（本工程 API 12，>5MB 原图靠它救回）。
+   */
   private static async download(u: string): Promise<ArrayBuffer> {
+    try {
+      return await ImageByteCache.downloadOnce(u);
+    } catch (e) {
+      const code = (e as BusinessError).code;
+      if (code === 2300063) {
+        // Maximum file size exceeded：切流式接收
+        return await ImageByteCache.downloadStream(u);
+      }
+      throw e as Error;
+    }
+  }
+
+  /** request() 单次下载。maxLimit 仅在 API >= 23 生效（本工程 API 12 忽略此字段，由 2300063 兜底） */
+  private static async downloadOnce(u: string): Promise<ArrayBuffer> {
     const request = http.createHttp();
     try {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.5',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.6',
           'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
         },
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
+        // API >= 23 时显式放行 64MB（默认仅 5MB）；API < 23 无效，超限走流式
+        maxLimit: ImageByteCache.MAX_IMAGE_BYTES,
         readTimeout: 30000
       };
       const resp = await request.request(u, opts);
@@ -81,6 +106,74 @@ export class ImageByteCache {
     } finally {
       request.destroy();
     }
+  }
+
+  /** 流式接收安全上限：防止异常响应把内存撑爆（正常原图远小于此值） */
+  private static readonly MAX_STREAM_BYTES: number = 128 * 1024 * 1024;
+
+  /** request() 快路径的显式接收上限（API >= 23 生效，见 downloadOnce） */
+  private static readonly MAX_IMAGE_BYTES: number = 64 * 1024 * 1024;
+
+  /**
+   * 流式下载：requestInStream 发起请求，dataReceive 分片累积，dataEnd 收尾拼接。
+   * 无 5MB 接收上限，用于 >5MB 的大原图（实测 >10MB 长图必经此路）。
+   */
+  private static downloadStream(u: string): Promise<ArrayBuffer> {
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+      const request = http.createHttp();
+      const chunks: ArrayBuffer[] = [];
+      let total = 0;
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        request.off('headersReceive');
+        request.off('dataReceive');
+        request.off('dataEnd');
+        request.destroy();
+        fn();
+      };
+      // 响应头事件：无需解析 Content-Length，数据统一走 dataReceive/dataEnd
+      request.on('headersReceive', () => {});
+      request.on('dataReceive', (data: ArrayBuffer) => {
+        chunks.push(data);
+        total += data.byteLength;
+        if (total > ImageByteCache.MAX_STREAM_BYTES) {
+          finish(() => reject(new Error('image too large')));
+        }
+      });
+      request.on('dataEnd', () => {
+        finish(() => {
+          const merged = new ArrayBuffer(total);
+          const view = new Uint8Array(merged);
+          let offset = 0;
+          for (const c of chunks) {
+            view.set(new Uint8Array(c), offset);
+            offset += c.byteLength;
+          }
+          resolve(merged);
+        });
+      });
+      const opts: http.HttpRequestOptions = {
+        method: http.RequestMethod.GET,
+        header: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.6',
+          'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+        },
+        // 大文件弱网放宽超时（request() 快路径保持 30s 不变）
+        readTimeout: 60000
+      };
+      request.requestInStream(u, opts, (err: BusinessError, code: number) => {
+        if (err) {
+          finish(() => reject(err));
+        } else if (code !== 200) {
+          finish(() => reject(new Error(`http ${code}`)));
+        }
+        // code === 200：等待 dataEnd 事件收尾
+      });
+    });
   }
 
   /** 由字节解码为 PixelMap（供 ArkUI 直接渲染，所见即所存）。

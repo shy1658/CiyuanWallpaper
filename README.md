@@ -67,11 +67,11 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.5.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.6.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.5.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.5.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.6.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.6.hap
 ```
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
