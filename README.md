@@ -1,8 +1,8 @@
-# 词源壁纸 · HarmonyOS 版（CiyuanWallpaper for HarmonyOS）
+# 次元壁纸 · HarmonyOS 版（CiyuanWallpaper for HarmonyOS）
 
-> 把 Android 二次元壁纸 App「词源壁纸 / AWSL」（`me.alzz.awsl` v2.11.5）移植到 HarmonyOS 的第三方实现。
+> 把 Android 二次元壁纸 App「次元壁纸 / AWSL」（`me.alzz.awsl` v2.11.5）移植到 HarmonyOS 的第三方实现。
 > 使用 **ArkTS + ArkUI** 编写，产物是一个可直接 `hdc app install` 安装的 `.hap`。
-> 本项目为**技术学习与移植演示**，与词源壁纸/AWSL 官方无任何关联。
+> 本项目为**技术学习与移植演示**，与次元壁纸/AWSL 官方无任何关联。
 
 - **包名**：`com.ciyuan.wallpaper`
 - **目标平台**：HarmonyOS NEXT，`compatibleSdkVersion` = `5.0.0(12)`（API 12 及以上）
@@ -67,7 +67,7 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 hdc app install entry/build/default/outputs/default/entry-default-signed.hap
 ```
 
-启动后 App 名为「词源壁纸」。首次保存壁纸可能弹窗申请相册写入权限。
+启动后 App 名为「次元壁纸」。首次保存壁纸可能弹窗申请相册写入权限。
 
 ---
 
@@ -132,6 +132,6 @@ CiyuanWallpaper/
 
 ## 许可与声明
 
-- 本项目为**技术学习与移植演示**，与麦当劳、词源壁纸/AWSL 官方无任何关联。
+- 本项目为**技术学习与移植演示**，与麦当劳、次元壁纸/AWSL 官方无任何关联。
 - 内置壁纸来自公开图源，版权归原作者所有；如需商用请替换为自有素材。
 - 逆向过程存档见 [`docs/REVERSE_NOTES.md`](docs/REVERSE_NOTES.md)。

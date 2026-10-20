@@ -1,4 +1,4 @@
-# 原版 App（词源壁纸 / AWSL）逆向笔记
+# 原版 App（次元壁纸 / AWSL）逆向笔记
 
 > 目标：搞清 https://www.13th.tech/ 分发的 Android App 的接口协议，评估移植到 HarmonyOS 的可行性。
 > 结论：私有 API 带 JNI 签名 + 版本网关，不可稳定绕过；移植版改用公开图源。
