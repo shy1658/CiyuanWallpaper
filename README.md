@@ -1,5 +1,8 @@
 # 次元壁纸 · HarmonyOS 版（CiyuanWallpaper for HarmonyOS）
 
+[![Release](https://img.shields.io/github/v/release/shy1658/CiyuanWallpaper?label=%E7%89%88%E6%9C%AC&logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/shy1658/CiyuanWallpaper/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases)
+
 > 把 Android 二次元壁纸 App「次元壁纸 / AWSL」（`me.alzz.awsl` v2.11.5）移植到 HarmonyOS 的第三方实现。
 > 使用 **ArkTS + ArkUI** 编写，产物是一个可直接 `hdc app install` 安装的 `.hap`。
 > 本项目为**技术学习与移植演示**，与次元壁纸/AWSL 官方无任何关联。
@@ -62,11 +65,16 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 ## 安装
 
+**直接下载安装包**（推荐，免构建）：
+
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.5.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+
 ```bash
-# 前置：设备已开启开发者模式并连接 hdc
-hdc app install entry/build/default/outputs/default/entry-default-signed.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.5.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.5.hap
 ```
 
+也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
 启动后 App 名为「次元壁纸」。首次保存壁纸可能弹窗申请相册写入权限。
 
 ---
