@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "次元壁纸"
+    },
+    {
+      "name": "app_name_en",
+      "value": "Ciyuan Wallpaper"
+    },
+    {
+      "name": "entryability_desc",
+      "value": "二次元壁纸浏览与设置"
+    },
+    {
+      "name": "entryability_label",
+      "value": "次元壁纸"
+    }
+  ]
+}

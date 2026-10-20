@@ -1,0 +1,31 @@
+# ---- 构建产物 ----
+entry/build/
+.hvigor/
+hvigor/outputs/
+*.hap
+
+# ---- hvigor 运行器（SDK 相关，按环境生成）----
+hvigorw
+hvigorw.js
+
+# ---- 本地/环境相关配置 ----
+local.properties
+
+# ---- 依赖 ----
+oh_modules/
+node_modules/
+
+# ---- 签名材料与工程签名配置（含密码，切勿入库）----
+build-profile.json5
+signing/
+material/
+*.jks
+*.p7b
+*.cer
+*.keystore
+
+# ---- 系统 / 编辑器 ----
+.DS_Store
+.idea/
+.vscode/
+*.log

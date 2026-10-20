@@ -1,0 +1,132 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "次元壁纸"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "需要网络权限以加载在线壁纸资源"
+    },
+    {
+      "name": "permission_storage_reason",
+      "value": "需要存储权限以保存壁纸到相册"
+    },
+    {
+      "name": "page_desc",
+      "value": "次元壁纸首页"
+    },
+    {
+      "name": "tab_home",
+      "value": "壁纸"
+    },
+    {
+      "name": "tab_category",
+      "value": "分类"
+    },
+    {
+      "name": "tab_explore",
+      "value": "发现"
+    },
+    {
+      "name": "tab_mine",
+      "value": "我的"
+    },
+    {
+      "name": "text_loading",
+      "value": "加载中..."
+    },
+    {
+      "name": "text_refresh",
+      "value": "换一批"
+    },
+    {
+      "name": "text_empty",
+      "value": "还没有内容，下拉刷新试试"
+    },
+    {
+      "name": "text_save_fail",
+      "value": "保存失败，请重试"
+    },
+    {
+      "name": "text_saved_to_gallery",
+      "value": "已保存到图库。HarmonyOS 暂不支持第三方应用创建相册分区，图片位于图库默认图片集合，可在 系统相册 中查看。"
+    },
+    {
+      "name": "text_saved_to_download",
+      "value": "已保存到本地 Download/com.ciyuan.wallpaper 目录"
+    },
+    {
+      "name": "text_save_local",
+      "value": "存到本地"
+    },
+    {
+      "name": "text_save_permission_denied",
+      "value": "未获得相册写入权限，可点击「存到本地」保存到 Download 目录"
+    },
+    {
+      "name": "text_favorited",
+      "value": "已收藏"
+    },
+    {
+      "name": "text_unfavorited",
+      "value": "已取消收藏"
+    },
+    {
+      "name": "text_favorite_empty",
+      "value": "收藏夹是空的，去壁纸页逛逛吧"
+    },
+    {
+      "name": "text_download",
+      "value": "下载"
+    },
+    {
+      "name": "text_source",
+      "value": "壁纸源"
+    },
+    {
+      "name": "text_about",
+      "value": "关于"
+    },
+    {
+      "name": "text_about_detail",
+      "value": "次元壁纸 HarmonyOS 版 · v2.11.5\n基于 HarmonyOS API 26 构建"
+    },
+    {
+      "name": "text_clear_cache",
+      "value": "清理缓存"
+    },
+    {
+      "name": "text_cache_cleared",
+      "value": "缓存已清理"
+    },
+    {
+      "name": "text_network_error",
+      "value": "网络开小差了，稍后重试"
+    },
+    {
+      "name": "text_lucky",
+      "value": "手气不错"
+    },
+    {
+      "name": "text_category_all",
+      "value": "全部"
+    },
+    {
+      "name": "text_category_portrait",
+      "value": "竖屏"
+    },
+    {
+      "name": "text_category_landscape",
+      "value": "横屏"
+    },
+    {
+      "name": "text_category_avatar",
+      "value": "头像"
+    },
+    {
+      "name": "text_count_suffix",
+      "value": "张"
+    }
+  ]
+}

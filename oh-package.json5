@@ -1,0 +1,10 @@
+{
+  "name": "ciyuanwallpaper",
+  "version": "1.0.0",
+  "description": "HarmonyOS port of Ciyuan Wallpaper (13th.tech)",
+  "main": "",
+  "author": "",
+  "license": "",
+  "modelVersion": "6.0.0",
+  "dependencies": {}
+}
