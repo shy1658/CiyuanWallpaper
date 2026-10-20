@@ -83,9 +83,100 @@ export class ImageByteCache {
     }
   }
 
-  /** 由字节解码为 PixelMap（供 ArkUI 直接渲染，所见即所存） */
+  /** 由字节解码为 PixelMap（供 ArkUI 直接渲染，所见即所存）。
+   * 长边超过 4096 时自动缩小解码，避免超大图超出 GPU 纹理上限导致解码失败。 */
   static async toPixelMap(buf: ArrayBuffer): Promise<image.PixelMap> {
+    return await ImageByteCache.toPixelMapScaled(buf, 4096);
+  }
+
+  /**
+   * 校验下载字节是否完整（按文件头声明的长度判断，主要用于发现传输截断）。
+   * HTTP 200 不代表数据完整：移动网络下大图可能只收到一部分仍返回成功，
+   * 这种残缺字节解码会失败，若直接保存就是“坏图”。
+   */
+  static isComplete(buf: ArrayBuffer): boolean {
+    if (!buf || buf.byteLength < 12) {
+      return false;
+    }
+    const b = new Uint8Array(buf);
+    const n = buf.byteLength;
+    // WEBP：'RIFF' + 4 字节小端文件长度（不含前 8 字节）+ 'WEBP'
+    if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
+      const riffSize = (b[4] | (b[5] << 8) | (b[6] << 16) | (b[7] << 24)) >>> 0;
+      return riffSize + 8 <= n;
+    }
+    // JPEG：以 FF D9 结束
+    if (b[0] === 0xFF && b[1] === 0xD8) {
+      return b[n - 2] === 0xFF && b[n - 1] === 0xD9;
+    }
+    // PNG：末尾 12 字节内应出现 'IEND' 块标识
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) {
+      for (let i = n - 12; i <= n - 4; i++) {
+        if (i >= 0 && b[i] === 0x49 && b[i + 1] === 0x45 && b[i + 2] === 0x4E && b[i + 3] === 0x44) {
+          return true;
+        }
+      }
+      return false;
+    }
+    // GIF：以 0x3B 结束
+    if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) {
+      return b[n - 1] === 0x3B;
+    }
+    // 其他格式：交给解码器判断
+    return true;
+  }
+
+  /** 清除某个地址及其候选地址的缓存（重试下载前清掉坏数据） */
+  private static evict(url: string): void {
+    ImageByteCache.cache.delete(url);
+    for (const u of ImageByteCache.candidates(url)) {
+      ImageByteCache.cache.delete(u);
+    }
+  }
+
+  /**
+   * 取图片二进制并校验完整性：发现截断则清缓存重试一次，仍不完整则抛错。
+   * 调用方应把它当作“可用于保存的字节”，未通过校验的数据绝不落盘。
+   */
+  static async getBytesValidated(url: string): Promise<ArrayBuffer> {
+    const first = await ImageByteCache.getBytes(url);
+    if (ImageByteCache.isComplete(first)) {
+      return first;
+    }
+    ImageByteCache.evict(url);
+    const second = await ImageByteCache.getBytes(url);
+    if (ImageByteCache.isComplete(second)) {
+      return second;
+    }
+    throw new Error('图片数据不完整（下载被截断）');
+  }
+
+  /**
+   * 由字节解码为 PixelMap，长边超过 maxSide 时按 desiredSize 等比缩小解码。
+   * 动机：部分二次元长图原图可达 4000px 以上，全尺寸 createPixelMap 在部分
+   * GPU 上会因纹理上限直接失败（报“格式不受支持或文件损坏”），
+   * 而缩略图（@960w 等处理后缀）尺寸小无此问题。
+   * 注意：只影响预览渲染；保存始终使用原始字节，画质不受影响。
+   */
+  static async toPixelMapScaled(buf: ArrayBuffer, maxSide: number): Promise<image.PixelMap> {
     const source = image.createImageSource(buf);
-    return await source.createPixelMap();
+    let width = 0;
+    let height = 0;
+    try {
+      const info = await source.getImageInfo();
+      width = info.size.width;
+      height = info.size.height;
+    } catch (e) {
+      // 取不到尺寸信息：按原尺寸解码
+    }
+    const longSide = Math.max(width, height);
+    if (width <= 0 || height <= 0 || longSide <= maxSide) {
+      return await source.createPixelMap();
+    }
+    const scale = maxSide / longSide;
+    const dw = Math.max(1, Math.round(width * scale));
+    const dh = Math.max(1, Math.round(height * scale));
+    return await source.createPixelMap({ desiredSize: { width: dw, height: dh } });
   }
 }

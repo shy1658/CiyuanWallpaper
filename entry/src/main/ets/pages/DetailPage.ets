@@ -8,6 +8,12 @@ import { localResFor } from '../common/WallpaperGrid';
 import { ImageSaveUtil } from '../utils/ImageSaveUtil';
 import { ImageByteCache } from '../utils/ImageByteCache';
 
+/** 预览加载结果：原始字节 + 解码后的像素图（保存复用同一份字节，所见即所存） */
+interface PreviewResult {
+  buf: ArrayBuffer;
+  pm: image.PixelMap;
+}
+
 /**
  * 壁纸详情页：全屏大图 + 收藏 / 下载壁纸 / 存到本地。
  * 说明：HarmonyOS NEXT 起 setWallpaper 为系统 API，第三方壁纸应用无法直接设置壁纸，
@@ -26,7 +32,7 @@ struct DetailPage {
   @State saving: boolean = false;
   /** 是否正在保存到本地目录 */
   @State savingLocal: boolean = false;
-  /** 预下载字节解码出的像素图：预览与保存共用同一份字节，确保“所见即所存” */
+  /** 当前预览像素图（缩略图先出、原图校验通过后升级高清） */
   @State pixelMap: image.PixelMap | undefined = undefined;
   /** 图片加载状态：loading / ok / error */
   @State loadState: string = 'loading';
@@ -35,10 +41,27 @@ struct DetailPage {
   /** 双指缩放比例 */
   @State imgScale: number = 1;
   private store: WallpaperStore = WallpaperStore.getInstance();
-  /** 预下载的图片二进制（进入页面即开始，点击下载时直接写入，保证在授权窗口内完成） */
-  private prefetchPromise: Promise<ArrayBuffer> | undefined = undefined;
-  /** 预下载失败标记（失败后点击时改为即时下载） */
-  private prefetchFailed: boolean = false;
+  /** 缩略图加载任务（快速首屏，体积小） */
+  private thumbPromise: Promise<PreviewResult> | undefined = undefined;
+  /** 原图加载任务（完整性与解码双校验通过后升级为高清预览，并作为保存首选） */
+  private originalPromise: Promise<PreviewResult> | undefined = undefined;
+  /** 缩略图字节（保存兜底：原图不可用时保存它） */
+  private prefetchedBuffer: ArrayBuffer | undefined = undefined;
+  /** 原图字节（保存首选：能正常加载的最清晰版本） */
+  private originalBuffer: ArrayBuffer | undefined = undefined;
+  /** 是否存在与原图不同的缩略图地址（易变源两者相同） */
+  private hasOriginal: boolean = false;
+  /** 缩略图/原图的结束与成功状态（两者都失败才展示错误） */
+  private thumbSettled: boolean = false;
+  private thumbOk: boolean = false;
+  private originalSettled: boolean = false;
+  private originalOk: boolean = false;
+  /** 当前预览是否已升级为原图（防止缩略图晚到把高清图顶掉） */
+  private showingOriginal: boolean = false;
+  /** 最后一次失败的真实原因（全部失败时展示） */
+  private lastErr: Error = new Error('image load failed');
+  /** 本次保存是否回退到了缩略图字节，用于提示用户 */
+  private usedFallbackBuffer: boolean = false;
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string> | undefined;
@@ -47,53 +70,165 @@ struct DetailPage {
         this.item = JSON.parse(params['item']) as WallpaperItem;
         this.favorite = this.store.isFavorite(this.item.id);
         this.startPrefetch();
-        // 预下载完成后，用同一份字节解码成像素图用于预览，
-        // 保存时也复用这份字节，从根本上避免“预览与保存不是同一张图”
-        this.prefetchPromise?.then(async (buf: ArrayBuffer) => {
-          try {
-            const source = image.createImageSource(buf);
-            this.pixelMap = await source.createPixelMap();
-            this.loadState = 'ok';
-          } catch (e) {
-            // 解码失败：显示真实错误而非笼统提示
-            this.loadState = 'error';
-            this.errorText = '图片解码失败（格式不受支持或文件损坏）';
-          }
-        }).catch((e: Error) => {
-          this.loadState = 'error';
-          this.errorText = `图片加载失败：${(e && e.message) ? e.message : '未知错误'}`;
-        });
       } catch (e) {
         this.item = undefined;
       }
     }
   }
 
-  /** 进入页面即预下载原图，缩短 SaveButton 授权窗口内的耗时。
-   * 所有网络图统一走字节缓存（http 模块 + https→http 回退），与网格缩略图复用同一套网络栈。 */
+  /**
+   * 进入页面即开始加载，两路并行：
+   * 1) 缩略图：体积小（约 100KB），先出图，保证首屏不空等；
+   * 2) 原图：完整性与解码双校验通过后，升级为高清预览，并作为保存首选。
+   * 原图被图床风控（http 567）、下载截断或解码失败时，保留缩略图且绝不落盘坏数据。
+   */
   private startPrefetch(): void {
-    if (!this.item || this.item.local) {
+    const item = this.item;
+    if (!item || item.local) {
       return;
     }
-    this.prefetchPromise = ImageByteCache.getBytes(this.item.url);
-    this.prefetchPromise.catch(() => {
-      this.prefetchFailed = true;
+    const thumb = (item.thumbUrl && item.thumbUrl.length > 0) ? item.thumbUrl : item.url;
+    const origin = item.url;
+    this.hasOriginal = origin.length > 0 && origin !== thumb;
+
+    // 1) 缩略图：快速首屏
+    this.thumbPromise = this.loadSource(thumb);
+    this.thumbPromise.then((res: PreviewResult) => {
+      this.thumbSettled = true;
+      this.thumbOk = true;
+      this.prefetchedBuffer = res.buf;
+      // 原图已经先到时不回退到低清
+      if (!this.showingOriginal) {
+        this.pixelMap = res.pm;
+        this.loadState = 'ok';
+      }
+    }).catch((e: Error) => {
+      this.thumbSettled = true;
+      this.lastErr = e;
+      this.reportIfAllFailed();
     });
+
+    // 2) 原图：校验通过后升级为高清
+    if (this.hasOriginal) {
+      this.originalPromise = this.loadSource(origin);
+      this.originalPromise.then((res: PreviewResult) => {
+        this.originalSettled = true;
+        this.originalOk = true;
+        this.originalBuffer = res.buf;
+        this.showingOriginal = true;
+        this.pixelMap = res.pm;
+        this.loadState = 'ok';
+      }).catch((e: Error) => {
+        this.originalSettled = true;
+        this.lastErr = e;
+        this.reportIfAllFailed();
+      });
+    } else {
+      // 易变源：thumbUrl === url，缩略图就是原图
+      this.originalSettled = true;
+    }
   }
 
-  /** 取得图片二进制：优先用预下载结果（同一份字节），失败则即时下载 */
-  private async obtainBuffer(): Promise<ArrayBuffer> {
-    if (this.prefetchPromise && !this.prefetchFailed) {
-      try {
-        return await this.prefetchPromise;
-      } catch (e) {
-        this.prefetchFailed = true;
+  /** 两路都失败才展示错误（单路失败由另一路兜底） */
+  private reportIfAllFailed(): void {
+    if (this.loadState === 'ok') {
+      return;
+    }
+    if (this.thumbSettled && this.originalSettled && !this.thumbOk && !this.originalOk) {
+      this.loadState = 'error';
+      this.errorText = `图片加载失败：${(this.lastErr && this.lastErr.message) ? this.lastErr.message : '未知错误'}`;
+    }
+  }
+
+  /** 加载单个地址：完整性校验 + 缩小解码；任一步失败即抛错，由调用方决定是否换源 */
+  private async loadSource(u: string): Promise<PreviewResult> {
+    const buf = await ImageByteCache.getBytesValidated(u);
+    // 预览按 2048 长边缩小解码：避免大图超出 GPU 纹理上限导致解码失败
+    const pm = await ImageByteCache.toPixelMapScaled(buf, 2048);
+    return { buf: buf, pm: pm };
+  }
+
+  /** 带超时的等待（毫秒）：超时返回 undefined，由调用方走回退逻辑 */
+  private async withTimeout(p: Promise<PreviewResult>, ms: number): Promise<PreviewResult | undefined> {
+    let timer: number | undefined = undefined;
+    try {
+      const timeout = new Promise<PreviewResult | undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), ms);
+      });
+      return await Promise.race([p, timeout]);
+    } finally {
+      if (timer !== undefined) {
+        clearTimeout(timer);
       }
     }
-    if (this.item && !this.item.local) {
-      // 网络图：统一走字节缓存，保证与预览同一张
-      return await ImageByteCache.getBytes(this.item.url);
+  }
+
+  /**
+   * 取得保存用图片二进制：优先“能正常加载的最清晰版本”（原图 → 缩略图）。
+   * 只有通过完整性校验且成功解码的字节才会被保存，杜绝“保存出坏图”。
+   * - 原图已校验通过：直接使用（全尺寸）；
+   * - 原图仍在加载：最多等 6 秒（SaveButton 授权窗口为 10 秒），超时则回退缩略图；
+   * - 原图不可用（风控 http 567 / 下载截断 / 解码失败）：回退缩略图，并提示用户。
+   */
+  private async obtainBuffer(): Promise<ArrayBuffer> {
+    this.usedFallbackBuffer = false;
+    const item = this.item;
+    if (item && !item.local) {
+      // 1) 原图（已通过完整性与解码校验）
+      if (this.originalBuffer) {
+        return this.originalBuffer;
+      }
+      if (this.hasOriginal && this.originalPromise && !this.originalSettled) {
+        try {
+          const res = await this.withTimeout(this.originalPromise, 6000);
+          if (res) {
+            this.originalBuffer = res.buf;
+            return res.buf;
+          }
+        } catch (e) {
+          // 原图加载失败：回退缩略图
+        }
+      }
+      // 2) 缩略图（已通过校验）
+      if (this.prefetchedBuffer) {
+        this.usedFallbackBuffer = true;
+        return this.prefetchedBuffer;
+      }
+      if (this.thumbPromise && !this.thumbSettled) {
+        try {
+          const res = await this.withTimeout(this.thumbPromise, 4000);
+          if (res) {
+            this.prefetchedBuffer = res.buf;
+            this.usedFallbackBuffer = true;
+            return res.buf;
+          }
+        } catch (e) {
+          // 缩略图也失败：走即时下载
+        }
+      }
+      // 3) 即时下载：原图优先、缩略图兜底，均需通过校验
+      const order: string[] = [];
+      if (item.url && item.url.length > 0) {
+        order.push(item.url);
+      }
+      if (item.thumbUrl && item.thumbUrl.length > 0 && order.indexOf(item.thumbUrl) < 0) {
+        order.push(item.thumbUrl);
+      }
+      let lastErr: Error = new Error('image download failed');
+      for (let i = 0; i < order.length; i++) {
+        try {
+          const buf = await ImageByteCache.getBytesValidated(order[i]);
+          if (i > 0) {
+            this.usedFallbackBuffer = true;
+          }
+          return buf;
+        } catch (e) {
+          lastErr = e as Error;
+        }
+      }
+      throw lastErr;
     }
+    // 本地预置图
     const context = getContext(this) as common.UIAbilityContext;
     const res = this.item && this.item.local ? localResFor(this.item.localRes) : undefined;
     return await ImageSaveUtil.fetchImageBuffer(context, this.item as WallpaperItem, res);
@@ -125,7 +260,8 @@ struct DetailPage {
 
   /**
    * SaveButton 点击回调：授权成功后立即创建媒体资源并写入。
-   * buffer 已在进入页面时预下载，写入操作在毫秒级完成。
+   * 保存用字节按「原图优先」获取：原图已在进入页面后后台预下载（通常已完成），
+   * 写入操作在毫秒级完成；原图不可达时回退到预览字节并明确提示。
    */
   private async onSaveButtonClick(result: SaveButtonOnClickResult): Promise<void> {
     if (!this.item || this.saving) {
@@ -141,11 +277,20 @@ struct DetailPage {
       const context = getContext(this) as common.UIAbilityContext;
       const buffer = await this.obtainBuffer();
       const name = ImageSaveUtil.fileNameFor(this.item);
-      await ImageSaveUtil.writeAssetFromBuffer(context, buffer, name);
-      promptAction.showToast({
-        message: $r('app.string.text_saved_to_gallery'),
-        duration: 3000
-      });
+      const ext = ImageSaveUtil.extensionFor(this.item);
+      await ImageSaveUtil.writeAssetFromBuffer(context, buffer, name, ext);
+      if (this.usedFallbackBuffer) {
+        // 原图不可达：已回退保存预览图，明确告知用户
+        promptAction.showToast({
+          message: '原图不可用（数据不完整或加载失败），已保存当前预览图',
+          duration: 3000
+        });
+      } else {
+        promptAction.showToast({
+          message: $r('app.string.text_saved_to_gallery'),
+          duration: 3000
+        });
+      }
     } catch (e) {
       promptAction.showToast({ message: $r('app.string.text_save_fail'), duration: 1500 });
     } finally {
@@ -188,13 +333,20 @@ struct DetailPage {
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const res = this.item.local ? localResFor(this.item.localRes) : undefined;
-      // 复用与预览同一份预下载字节，确保“存到本地”也是同一张图
+      // 原图优先（后台已预下载），原图不可达时回退预览字节，保证“存到本地”不失败
       const buffer = await this.obtainBuffer();
       await ImageSaveUtil.saveToDownloadDir(context, this.item, res, buffer);
-      promptAction.showToast({
-        message: $r('app.string.text_saved_to_download'),
-        duration: 3000
-      });
+      if (this.usedFallbackBuffer) {
+        promptAction.showToast({
+          message: '原图不可用（数据不完整或加载失败），已保存当前预览图',
+          duration: 3000
+        });
+      } else {
+        promptAction.showToast({
+          message: $r('app.string.text_saved_to_download'),
+          duration: 3000
+        });
+      }
     } catch (e) {
       promptAction.showToast({ message: $r('app.string.text_save_fail'), duration: 1500 });
     } finally {
