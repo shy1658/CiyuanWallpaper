@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.ciyuan.wallpaper",
     "vendor": "ciyuan",
-    "versionCode": 1000004,
-    "versionName": "2.11.63",
+    "versionCode": 1000005,
+    "versionName": "2.11.64",
     "icon": "$media:app_icon",
     "label": "$string:app_name",
     "apiReleaseType": "Release12",
