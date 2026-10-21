@@ -99,8 +99,10 @@ export class ImageSaveUtil {
   private static async writeAll(fd: number, buffer: ArrayBuffer): Promise<number> {
     let offset = 0;
     const total = buffer.byteLength;
+    // 用 Uint8Array 视图写入，规避个别版本对裸 ArrayBuffer 返回 0 字节的隐患；
+    // 从 offset 起构造视图，避免大文件单次写入不全
     while (offset < total) {
-      const chunk = offset === 0 ? buffer : buffer.slice(offset);
+      const chunk = new Uint8Array(buffer, offset);
       const written = await fileIo.write(fd, chunk);
       if (written <= 0) {
         throw new Error('文件写入失败');

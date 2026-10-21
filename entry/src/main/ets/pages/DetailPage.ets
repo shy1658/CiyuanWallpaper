@@ -164,39 +164,43 @@ struct DetailPage {
   }
 
   /**
-   * 取得保存用图片二进制：优先“能正常加载的最清晰版本”（原图 → 缩略图）。
-   * 只有通过完整性校验且成功解码的字节才会被保存，杜绝“保存出坏图”。
-   * - 原图已校验通过：直接使用（全尺寸）；
-   * - 原图仍在加载：最多等 6 秒（SaveButton 授权窗口为 10 秒），超时则回退缩略图；
-   * - 原图不可用（风控 http 567 / 下载截断 / 解码失败）：回退缩略图，并提示用户。
+   * 取得保存用图片二进制：原图优先、缩略图兜底，均通过完整性校验。
+   * @param forGallery 是否用于「保存到图库」：SaveButton 临时授权窗口仅 10 秒，且
+   *   createAsset 必须在窗口内调用（超时即 permission denied）。为杜绝保存失败，
+   *   图库场景严禁在窗口内等待大原图网络下载——原图未缓存时直接回退已就绪的
+   *   缩略图；本地保存走 DocumentViewPicker 持久授权，无此窗口限制，可等待原图。
    */
-  private async obtainBuffer(): Promise<ArrayBuffer> {
+  private async obtainBuffer(forGallery: boolean = false): Promise<ArrayBuffer> {
     this.usedFallbackBuffer = false;
     const item = this.item;
     if (item && !item.local) {
-      // 1) 原图（已通过完整性与解码校验）
+      // 1) 原图已缓存：直接返回（图库场景窗口内零等待）
       if (this.originalBuffer) {
         return this.originalBuffer;
       }
-      if (this.hasOriginal && this.originalPromise && !this.originalSettled) {
-        try {
-          const res = await this.withTimeout(this.originalPromise, 6000);
-          if (res) {
-            this.originalBuffer = res.buf;
-            return res.buf;
+      // 2) 仅非图库场景：允许等待大原图下载（本地保存无 10 秒窗口限制）
+      if (!forGallery) {
+        if (this.hasOriginal && this.originalPromise && !this.originalSettled) {
+          try {
+            const res = await this.withTimeout(this.originalPromise, 6000);
+            if (res) {
+              this.originalBuffer = res.buf;
+              return res.buf;
+            }
+          } catch (e) {
+            // 原图加载失败：回退缩略图
           }
-        } catch (e) {
-          // 原图加载失败：回退缩略图
         }
       }
-      // 2) 缩略图（已通过校验）
+      // 3) 缩略图已缓存：兜底返回（不消耗授权窗口时间）
       if (this.prefetchedBuffer) {
         this.usedFallbackBuffer = true;
         return this.prefetchedBuffer;
       }
+      // 4) 缩略图仍在加载：图库场景最多等 3 秒，避免挤占授权窗口
       if (this.thumbPromise && !this.thumbSettled) {
         try {
-          const res = await this.withTimeout(this.thumbPromise, 4000);
+          const res = await this.withTimeout(this.thumbPromise, forGallery ? 3000 : 4000);
           if (res) {
             this.prefetchedBuffer = res.buf;
             this.usedFallbackBuffer = true;
@@ -275,7 +279,8 @@ struct DetailPage {
     this.saving = true;
     try {
       const context = getContext(this) as common.UIAbilityContext;
-      const buffer = await this.obtainBuffer();
+      // 图库场景：授权窗口内不等待大原图，原图未缓存直接用已就绪缩略图
+      const buffer = await this.obtainBuffer(true);
       const name = ImageSaveUtil.fileNameFor(this.item);
       const ext = ImageSaveUtil.extensionFor(this.item);
       await ImageSaveUtil.writeAssetFromBuffer(context, buffer, name, ext);
@@ -334,7 +339,7 @@ struct DetailPage {
       const context = getContext(this) as common.UIAbilityContext;
       const res = this.item.local ? localResFor(this.item.localRes) : undefined;
       // 原图优先（后台已预下载），原图不可达时回退预览字节，保证“存到本地”不失败
-      const buffer = await this.obtainBuffer();
+      const buffer = await this.obtainBuffer(false);
       await ImageSaveUtil.saveToDownloadDir(context, this.item, res, buffer);
       if (this.usedFallbackBuffer) {
         promptAction.showToast({
