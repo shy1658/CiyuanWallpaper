@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { abilityAccessCtrl, common } from '@kit.AbilityKit';
+import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
 import { WallpaperItem } from '../model/WallpaperItem';
@@ -7,6 +7,8 @@ import { WallpaperStore } from '../viewmodel/WallpaperStore';
 import { localResFor } from '../common/WallpaperGrid';
 import { ImageSaveUtil } from '../utils/ImageSaveUtil';
 import { ImageByteCache } from '../utils/ImageByteCache';
+import { Logger } from '../utils/Logger';
+import { HistoryStore } from '../utils/HistoryStore';
 
 /** 预览加载结果：原始字节 + 解码后的像素图（保存复用同一份字节，所见即所存） */
 interface PreviewResult {
@@ -15,11 +17,10 @@ interface PreviewResult {
 }
 
 /**
- * 壁纸详情页：全屏大图 + 收藏 / 下载壁纸 / 存到本地。
+ * 壁纸详情页：全屏大图 + 收藏 / 存到本地。
  * 说明：HarmonyOS NEXT 起 setWallpaper 为系统 API，第三方壁纸应用无法直接设置壁纸，
- * 统一做法是保存原图到图库后引导用户在系统设置中选择。
- * 保存到图册使用 SaveButton 安全控件（免申请 WRITE_IMAGEVIDEO 受限权限），
  * 「存到本地」走文档选择器 DOWNLOAD 模式落盘到 Download/包名/ 独立目录。
+ * 进入页面即记录到「历史浏览记录」。
  */
 @Entry
 @Component
@@ -69,9 +70,12 @@ struct DetailPage {
       try {
         this.item = JSON.parse(params['item']) as WallpaperItem;
         this.favorite = this.store.isFavorite(this.item.id);
+        // 记录浏览历史（去重置顶、按时间倒序）
+        HistoryStore.getInstance().record(this.item);
         this.startPrefetch();
       } catch (e) {
         this.item = undefined;
+        Logger.e('DetailPage', '解析壁纸参数失败', e as Error);
       }
     }
   }
@@ -105,6 +109,7 @@ struct DetailPage {
     }).catch((e: Error) => {
       this.thumbSettled = true;
       this.lastErr = e;
+      Logger.e('DetailPage', '缩略图加载失败', e);
       this.reportIfAllFailed();
     });
 
@@ -121,6 +126,7 @@ struct DetailPage {
       }).catch((e: Error) => {
         this.originalSettled = true;
         this.lastErr = e;
+        Logger.e('DetailPage', '原图加载失败', e);
         this.reportIfAllFailed();
       });
     } else {
@@ -165,42 +171,37 @@ struct DetailPage {
 
   /**
    * 取得保存用图片二进制：原图优先、缩略图兜底，均通过完整性校验。
-   * @param forGallery 是否用于「保存到图库」：SaveButton 临时授权窗口仅 10 秒，且
-   *   createAsset 必须在窗口内调用（超时即 permission denied）。为杜绝保存失败，
-   *   图库场景严禁在窗口内等待大原图网络下载——原图未缓存时直接回退已就绪的
-   *   缩略图；本地保存走 DocumentViewPicker 持久授权，无此窗口限制，可等待原图。
+   * 本地保存走 DocumentViewPicker 持久授权，无 SaveButton 10 秒窗口限制，可等待原图下载。
    */
-  private async obtainBuffer(forGallery: boolean = false): Promise<ArrayBuffer> {
+  private async obtainBuffer(): Promise<ArrayBuffer> {
     this.usedFallbackBuffer = false;
     const item = this.item;
     if (item && !item.local) {
-      // 1) 原图已缓存：直接返回（图库场景窗口内零等待）
+      // 1) 原图已缓存：直接返回
       if (this.originalBuffer) {
         return this.originalBuffer;
       }
-      // 2) 仅非图库场景：允许等待大原图下载（本地保存无 10 秒窗口限制）
-      if (!forGallery) {
-        if (this.hasOriginal && this.originalPromise && !this.originalSettled) {
-          try {
-            const res = await this.withTimeout(this.originalPromise, 6000);
-            if (res) {
-              this.originalBuffer = res.buf;
-              return res.buf;
-            }
-          } catch (e) {
-            // 原图加载失败：回退缩略图
+      // 2) 等待大原图下载（本地保存无窗口限制，原图优先）
+      if (this.hasOriginal && this.originalPromise && !this.originalSettled) {
+        try {
+          const res = await this.withTimeout(this.originalPromise, 6000);
+          if (res) {
+            this.originalBuffer = res.buf;
+            return res.buf;
           }
+        } catch (e) {
+          // 原图加载失败：回退缩略图
         }
       }
-      // 3) 缩略图已缓存：兜底返回（不消耗授权窗口时间）
+      // 3) 缩略图已缓存：兜底返回
       if (this.prefetchedBuffer) {
         this.usedFallbackBuffer = true;
         return this.prefetchedBuffer;
       }
-      // 4) 缩略图仍在加载：图库场景最多等 3 秒，避免挤占授权窗口
+      // 4) 缩略图仍在加载：最多等 4 秒
       if (this.thumbPromise && !this.thumbSettled) {
         try {
-          const res = await this.withTimeout(this.thumbPromise, forGallery ? 3000 : 4000);
+          const res = await this.withTimeout(this.thumbPromise, 4000);
           if (res) {
             this.prefetchedBuffer = res.buf;
             this.usedFallbackBuffer = true;
@@ -250,85 +251,6 @@ struct DetailPage {
     });
   }
 
-  /** 申请相册写入权限（SaveButton 授权失败时的降级路径），返回是否已授权 */
-  private async requestWritePermission(): Promise<boolean> {
-    const context = getContext(this) as common.UIAbilityContext;
-    const atManager = abilityAccessCtrl.createAtManager();
-    try {
-      const result = await atManager.requestPermissionsFromUser(context, ['ohos.permission.WRITE_IMAGEVIDEO']);
-      return result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /**
-   * SaveButton 点击回调：授权成功后立即创建媒体资源并写入。
-   * 保存用字节按「原图优先」获取：原图已在进入页面后后台预下载（通常已完成），
-   * 写入操作在毫秒级完成；原图不可达时回退到预览字节并明确提示。
-   */
-  private async onSaveButtonClick(result: SaveButtonOnClickResult): Promise<void> {
-    if (!this.item || this.saving) {
-      return;
-    }
-    if (result !== SaveButtonOnClickResult.SUCCESS) {
-      // 用户取消或授权失败：降级到受限权限路径
-      await this.onSaveClickFallback();
-      return;
-    }
-    this.saving = true;
-    try {
-      const context = getContext(this) as common.UIAbilityContext;
-      // 图库场景：授权窗口内不等待大原图，原图未缓存直接用已就绪缩略图
-      const buffer = await this.obtainBuffer(true);
-      const name = ImageSaveUtil.fileNameFor(this.item);
-      const ext = ImageSaveUtil.extensionFor(this.item);
-      await ImageSaveUtil.writeAssetFromBuffer(context, buffer, name, ext);
-      if (this.usedFallbackBuffer) {
-        // 原图不可达：已回退保存预览图，明确告知用户
-        promptAction.showToast({
-          message: '原图不可用（数据不完整或加载失败），已保存当前预览图',
-          duration: 3000
-        });
-      } else {
-        promptAction.showToast({
-          message: $r('app.string.text_saved_to_gallery'),
-          duration: 3000
-        });
-      }
-    } catch (e) {
-      promptAction.showToast({ message: $r('app.string.text_save_fail'), duration: 1500 });
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  /** 降级路径：申请 WRITE_IMAGEVIDEO 后保存到图库 */
-  private async onSaveClickFallback(): Promise<void> {
-    if (!this.item || this.saving) {
-      return;
-    }
-    const granted = await this.requestWritePermission();
-    if (!granted) {
-      promptAction.showToast({ message: $r('app.string.text_save_permission_denied'), duration: 2000 });
-      return;
-    }
-    this.saving = true;
-    try {
-      const context = getContext(this) as common.UIAbilityContext;
-      const res = this.item.local ? localResFor(this.item.localRes) : undefined;
-      await ImageSaveUtil.saveToGallery(context, this.item, res);
-      promptAction.showToast({
-        message: $r('app.string.text_saved_to_gallery'),
-        duration: 3000
-      });
-    } catch (e) {
-      promptAction.showToast({ message: $r('app.string.text_save_fail'), duration: 1500 });
-    } finally {
-      this.saving = false;
-    }
-  }
-
   /** 「存到本地」：DocumentViewPicker DOWNLOAD 模式，落盘 Download/包名/ 独立目录 */
   private async onSaveLocalClick(): Promise<void> {
     if (!this.item || this.savingLocal) {
@@ -339,7 +261,7 @@ struct DetailPage {
       const context = getContext(this) as common.UIAbilityContext;
       const res = this.item.local ? localResFor(this.item.localRes) : undefined;
       // 原图优先（后台已预下载），原图不可达时回退预览字节，保证“存到本地”不失败
-      const buffer = await this.obtainBuffer(false);
+      const buffer = await this.obtainBuffer();
       await ImageSaveUtil.saveToDownloadDir(context, this.item, res, buffer);
       if (this.usedFallbackBuffer) {
         promptAction.showToast({
@@ -353,6 +275,7 @@ struct DetailPage {
         });
       }
     } catch (e) {
+      Logger.e('DetailPage', '保存到本地失败', e as Error);
       promptAction.showToast({ message: $r('app.string.text_save_fail'), duration: 1500 });
     } finally {
       this.savingLocal = false;
@@ -480,18 +403,6 @@ struct DetailPage {
           .onClick(() => {
             this.onFavoriteClick();
           })
-
-          // 保存到图库（安全控件：点击即获得临时媒体库写入授权，无需申请存储权限）
-          SaveButton({ text: SaveDescription.SAVE_TO_GALLERY })
-            .width(132)
-            .height(46)
-            .fontSize(15)
-            .fontColor('#FFFFFFFF')
-            .backgroundColor($r('app.color.primary_dark'))
-            .borderRadius(23)
-            .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
-              this.onSaveButtonClick(result).catch(() => { });
-            })
         }
         .width('100%')
 

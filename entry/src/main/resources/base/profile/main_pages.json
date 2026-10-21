@@ -5,6 +5,9 @@
     "pages/FavoritePage",
     "pages/SourceManagePage",
     "pages/LoginPage",
-    "pages/CloudLovePage"
+    "pages/CloudLovePage",
+    "pages/LogsPage",
+    "pages/HistoryPage",
+    "pages/AboutPage"
   ]
 }

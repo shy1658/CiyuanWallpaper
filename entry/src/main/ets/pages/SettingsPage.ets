@@ -4,6 +4,8 @@ import { promptAction } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { WallpaperStore } from '../viewmodel/WallpaperStore';
 import { AuthStore } from '../utils/AuthStore';
+import { HistoryStore } from '../utils/HistoryStore';
+import { Logger } from '../utils/Logger';
 
 /**
  * 我的 / 设置页
@@ -16,6 +18,8 @@ export struct SettingsPage {
   @State username: string = '';
   @State isPro: boolean = false;
   @State sourceCount: number = 0;
+  @State historyCount: number = 0;
+  @State logCount: number = 0;
   private store: WallpaperStore = WallpaperStore.getInstance();
   private authStore: AuthStore = AuthStore.getInstance();
   private listenerRegistered: boolean = false;
@@ -28,6 +32,8 @@ export struct SettingsPage {
     this.isPro = session ? session.isPro : false;
     this.sourceCount = this.store.getCustomSources().length;
     this.favoriteCount = this.store.getFavorites().length;
+    this.historyCount = HistoryStore.getInstance().getAll().length;
+    this.logCount = Logger.getInstance().count();
   }
 
   onShow(): void {
@@ -84,7 +90,7 @@ export struct SettingsPage {
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
-          Text('HarmonyOS 版 · v2.11.62')
+          Text('HarmonyOS 版 · v2.11.63')
             .fontSize(11)
             .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })
@@ -129,6 +135,18 @@ export struct SettingsPage {
           })
         }
 
+        ListItem() {
+          this.buildRow('历史浏览记录', `共 ${this.historyCount} 条`, () => {
+            router.pushUrl({ url: 'pages/HistoryPage' }).catch(() => { });
+          })
+        }
+
+        ListItem() {
+          this.buildRow('日志', this.logCount > 0 ? `未读 ${this.logCount} 条` : '自动收集运行错误', () => {
+            router.pushUrl({ url: 'pages/LogsPage' }).catch(() => { });
+          })
+        }
+
         // 壁纸源管理
         ListItem() {
           this.buildRow('壁纸源', `内置 5 个 · 自定义 ${this.sourceCount} 个`, () => {
@@ -145,10 +163,7 @@ export struct SettingsPage {
 
         ListItem() {
           this.buildRow('关于', '次元壁纸 HarmonyOS 移植版 · 基于 API 12 构建', () => {
-            promptAction.showToast({
-              message: '次元壁纸 HarmonyOS 移植版 v2.11.62\n数据源为公开二次元图床聚合',
-              duration: 3000
-            });
+            router.pushUrl({ url: 'pages/AboutPage' }).catch(() => { });
           })
         }
       }
