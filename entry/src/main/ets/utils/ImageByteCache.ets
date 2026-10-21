@@ -90,7 +90,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.6',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.61',
           'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
         },
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
@@ -159,7 +159,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.6',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.61',
           'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
         },
         // 大文件弱网放宽超时（request() 快路径保持 30s 不变）

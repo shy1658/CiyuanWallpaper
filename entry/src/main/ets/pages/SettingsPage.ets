@@ -84,7 +84,7 @@ export struct SettingsPage {
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
-          Text('HarmonyOS 版 · v2.11.6')
+          Text('HarmonyOS 版 · v2.11.61')
             .fontSize(11)
             .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })
@@ -146,7 +146,7 @@ export struct SettingsPage {
         ListItem() {
           this.buildRow('关于', '次元壁纸 HarmonyOS 移植版 · 基于 API 12 构建', () => {
             promptAction.showToast({
-              message: '次元壁纸 HarmonyOS 移植版 v2.11.6\n数据源为公开二次元图床聚合',
+              message: '次元壁纸 HarmonyOS 移植版 v2.11.61\n数据源为公开二次元图床聚合',
               duration: 3000
             });
           })

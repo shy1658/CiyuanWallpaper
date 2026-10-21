@@ -97,12 +97,29 @@ export class CiyuanProvider implements WallpaperProvider {
 
   reset(): void {
     this.cursor = 0;
+    // 换一批（refresh）：全量已加载时重新随机洗牌，使每次刷新得到不同批次，
+    // 而非固定排序列表头的同一批——这是“换一批没有随机性”的根因
+    if (this.loaded) {
+      this.shuffle();
+    }
+  }
+
+  /** Fisher–Yates 原地洗牌：随机且均匀，避免 sort(() => Math.random() - 0.5) 分布不均 */
+  private shuffle(): void {
+    for (let i = this.all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = this.all[i];
+      this.all[i] = this.all[j];
+      this.all[j] = tmp;
+    }
   }
 
   private async loadAll(): Promise<void> {
     const list: CloudWallpaper[] = await AuthApi.getRankMain();
     this.all = list.map((w: CloudWallpaper) => CiyuanProvider.toItem(w));
     this.loaded = true;
+    // 首次加载即洗牌，保证首页第一批也随机
+    this.shuffle();
   }
 
   /** 把明文 http 直链升级为 https（hdslb 等图床支持 https，规避鸿蒙默认禁止明文 HTTP 流量） */
