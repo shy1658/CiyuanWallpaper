@@ -61,7 +61,7 @@ Fmt DetectFormat(const uint8_t* b, size_t n) {
     return Fmt::OTHER;
 }
 
-// AVIF/HEIF：libavif + dav1d 解码为 RGBA8888
+// AVIF/HEIF：libavif + dav1d 解码为 BGRA8888（与 HarmonyOS PixelMap 默认通道顺序一致）
 bool DecodeAvif(const uint8_t* data, size_t len, std::vector<uint8_t>& outRgba, uint32_t& outW, uint32_t& outH) {
     avifDecoder* decoder = avifDecoderCreate();
     if (decoder == nullptr) {
@@ -89,7 +89,7 @@ bool DecodeAvif(const uint8_t* data, size_t len, std::vector<uint8_t>& outRgba, 
 
         avifRGBImage rgb;
         avifRGBImageSetDefaults(&rgb, decoder->image);
-        rgb.format = AVIF_RGB_FORMAT_RGBA;
+        rgb.format = AVIF_RGB_FORMAT_BGRA;
         rgb.depth = 8;
         if (avifRGBImageAllocatePixels(&rgb) != AVIF_RESULT_OK) {
             LOGE("avif: allocate rgb pixels failed");
@@ -119,7 +119,7 @@ bool DecodeAvif(const uint8_t* data, size_t len, std::vector<uint8_t>& outRgba, 
     return ok;
 }
 
-// JPEG（基线/渐进式均支持）：libjpeg-turbo 解码为 RGBA8888
+// JPEG（基线/渐进式均支持）：libjpeg-turbo 解码为 BGRA8888
 bool DecodeJpeg(const uint8_t* data, size_t len, std::vector<uint8_t>& outRgba, uint32_t& outW, uint32_t& outH) {
     tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
@@ -140,7 +140,7 @@ bool DecodeJpeg(const uint8_t* data, size_t len, std::vector<uint8_t>& outRgba, 
         }
         outRgba.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
         if (tjDecompress2(handle, data, static_cast<unsigned long>(len), outRgba.data(), width, 0, height,
-                          TJPF_RGBA, TJFLAG_FASTDCT) != 0) {
+                          TJPF_BGRA, TJFLAG_FASTDCT) != 0) {
             LOGE("jpeg: decompress failed: %{public}s", tjGetErrorStr2(handle));
             break;
         }
@@ -225,9 +225,12 @@ OH_PixelmapNative* DecodeCore(const uint8_t* data, size_t len, uint32_t maxSide,
     return pixelmap;
 }
 
-// RGBA8888 裸数据 -> PixelMap，并按 maxSide 等比缩放（大图保护）
-OH_PixelmapNative* CreateRgbaPixelMap(std::vector<uint8_t>& rgba, uint32_t width, uint32_t height, uint32_t maxSide) {
-    if (rgba.empty() || width == 0 || height == 0) {
+// BGRA8888 裸数据 -> PixelMap，并按 maxSide 等比缩放（大图保护）。
+// 注意：HarmonyOS 的 PixelMap 创建默认按 BGRA_8888 解释缓冲区，即便声明 RGBA_8888
+// 也可能被底层按 BGRA 处理，导致 R/B 互换（预览偏色）。这里统一用 BGRA，
+// 并显式设置 srcPixelFormat，消除歧义。
+OH_PixelmapNative* CreateBgraPixelMap(std::vector<uint8_t>& bgra, uint32_t width, uint32_t height, uint32_t maxSide) {
+    if (bgra.empty() || width == 0 || height == 0) {
         return nullptr;
     }
     OH_Pixelmap_InitializationOptions* options = nullptr;
@@ -236,11 +239,12 @@ OH_PixelmapNative* CreateRgbaPixelMap(std::vector<uint8_t>& rgba, uint32_t width
     }
     OH_PixelmapInitializationOptions_SetWidth(options, width);
     OH_PixelmapInitializationOptions_SetHeight(options, height);
-    OH_PixelmapInitializationOptions_SetPixelFormat(options, PIXEL_FORMAT_RGBA_8888);
+    OH_PixelmapInitializationOptions_SetPixelFormat(options, PIXEL_FORMAT_BGRA_8888);
+    OH_PixelmapInitializationOptions_SetSrcPixelFormat(options, PIXEL_FORMAT_BGRA_8888);
     OH_PixelmapInitializationOptions_SetAlphaType(options, PIXELMAP_ALPHA_TYPE_OPAQUE);
 
     OH_PixelmapNative* pixelmap = nullptr;
-    Image_ErrorCode ec = OH_PixelmapNative_CreatePixelmap(rgba.data(), rgba.size(), options, &pixelmap);
+    Image_ErrorCode ec = OH_PixelmapNative_CreatePixelmap(bgra.data(), bgra.size(), options, &pixelmap);
     OH_PixelmapInitializationOptions_Release(options);
     if (ec != IMAGE_SUCCESS || pixelmap == nullptr) {
         LOGE("rgba: create pixelmap failed: %{public}d", static_cast<int>(ec));
@@ -264,7 +268,7 @@ OH_PixelmapNative* DecodeToPixelMap(const uint8_t* data, size_t len, uint32_t ma
         uint32_t w = 0;
         uint32_t h = 0;
         if (DecodeAvif(data, len, rgba, w, h)) {
-            OH_PixelmapNative* pm = CreateRgbaPixelMap(rgba, w, h, maxSide);
+            OH_PixelmapNative* pm = CreateBgraPixelMap(rgba, w, h, maxSide);
             if (pm != nullptr) {
                 return pm;
             }
@@ -277,7 +281,7 @@ OH_PixelmapNative* DecodeToPixelMap(const uint8_t* data, size_t len, uint32_t ma
         uint32_t w = 0;
         uint32_t h = 0;
         if (DecodeJpeg(data, len, rgba, w, h)) {
-            OH_PixelmapNative* pm = CreateRgbaPixelMap(rgba, w, h, maxSide);
+            OH_PixelmapNative* pm = CreateBgraPixelMap(rgba, w, h, maxSide);
             if (pm != nullptr) {
                 return pm;
             }

@@ -74,7 +74,7 @@ struct AboutPage {
               .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))
               .margin({ top: 10 })
-            Text('HarmonyOS 移植版 · v2.11.73')
+            Text('HarmonyOS 移植版 · v2.11.74')
               .fontSize(12)
               .fontColor($r('app.color.text_secondary'))
               .margin({ top: 4 })
