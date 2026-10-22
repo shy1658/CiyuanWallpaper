@@ -1,7 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
-import { fileIo } from '@kit.CoreFileKit';
 import { WallpaperStore } from '../viewmodel/WallpaperStore';
 import { AuthStore } from '../utils/AuthStore';
 import { HistoryStore } from '../utils/HistoryStore';
@@ -13,7 +11,6 @@ import { Logger } from '../utils/Logger';
 @Component
 export struct SettingsPage {
   @State favoriteCount: number = 0;
-  @State cacheCleared: boolean = false;
   @State loggedIn: boolean = false;
   @State username: string = '';
   @State isPro: boolean = false;
@@ -90,7 +87,7 @@ export struct SettingsPage {
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
-          Text('HarmonyOS 版 · v2.11.75')
+          Text('HarmonyOS 版 · v2.11.76')
             .fontSize(11)
             .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })
@@ -109,7 +106,7 @@ export struct SettingsPage {
             this.loggedIn ? this.username : '登录账号',
             this.loggedIn
               ? (this.isPro ? '高级版用户 · 点击退出登录' : '已登录 · 点击退出登录')
-              : '登录后可查看云端收藏与我的上传',
+              : '登录后可查看云端收藏',
             () => {
               this.onUserRowClick();
             })
@@ -120,11 +117,6 @@ export struct SettingsPage {
           ListItem() {
             this.buildRow('云端收藏', '查看账号在原版次元壁纸的收藏', () => {
               router.pushUrl({ url: 'pages/CloudLovePage', params: { mode: 'love' } }).catch(() => { });
-            })
-          }
-          ListItem() {
-            this.buildRow('我的上传', '查看账号上传过的壁纸作品', () => {
-              router.pushUrl({ url: 'pages/CloudLovePage', params: { mode: 'upload' } }).catch(() => { });
             })
           }
         }
@@ -151,13 +143,6 @@ export struct SettingsPage {
         ListItem() {
           this.buildRow('壁纸源', `内置 5 个 · 自定义 ${this.sourceCount} 个`, () => {
             router.pushUrl({ url: 'pages/SourceManagePage' }).catch(() => { });
-          })
-        }
-
-        ListItem() {
-          this.buildRow('清理缓存', this.cacheCleared ? '缓存已清理' : '清理已下载的壁纸文件', async () => {
-            await this.clearCache();
-            this.cacheCleared = true;
           })
         }
 
@@ -199,19 +184,4 @@ export struct SettingsPage {
     .onClick(onClick)
   }
 
-  async clearCache(): Promise<void> {
-    try {
-      // getContext 必须在组件挂载后（事件回调中）调用，构造期调用会抛异常
-      const context = getContext(this) as common.UIAbilityContext;
-      const dir = context.filesDir;
-      const list = await fileIo.listFile(dir);
-      for (const f of list) {
-        if (f.startsWith('ciyuan_')) {
-          await fileIo.unlink(`${dir}/${f}`);
-        }
-      }
-    } catch (e) {
-      // 忽略清理失败
-    }
-  }
 }

@@ -66,11 +66,11 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.75.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.76.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.75.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.75.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.76.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.76.hap
 ```
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
@@ -117,6 +117,7 @@ bash build.sh
 
 | 版本 | 关键变更 |
 |---|---|
+| **v2.11.76** | **精简「我的」页面**：移除「我的上传」与「清理缓存」两个入口，并清理其关联的 `clearCache()` 实现、`cacheCleared` 状态与 `common`/`fileIo` 依赖；账号行副标题由「登录后可查看云端收藏与我的上传」改为「登录后可查看云端收藏」 |
 | **v2.11.75** | **修复 `2300007 Failed to connect` —— 不再强行把 http 升级为 https**：官方列表约一半图址是 `http://`，其中 13th.tech 系列图床（`lux1` / `kha` / `bitiful` / `super` / `qn`）**只监听 80 端口，443 直接 No route to host**。旧逻辑把 `http://` 强改为 `https://` 先试，必然连接失败；v2.11.73 又把 `2300007` 误判为"不可救"直接终止，导致原图永远拿不到（缩略图恰在支持 https 的主机，所以只有原图失败）。现改为**尊重源站协议**（http 就先用 http），另一协议仅在"连接层错误"（2300007 / TLS 证书类）时才作为备选；DNS 失败（2300006）、超时（2300028）、HTTP 状态码错误均不再换协议重试 |
 | **v2.11.74** | **修复网格预览「偏色」（红蓝通道互换）**：HarmonyOS `PixelMap` 创建接口默认按 **BGRA_8888** 解释输入缓冲区，即使声明 `RGBA_8888` 也可能被底层按 BGRA 处理。此前原生模块用 turbojpeg/libavif 输出 **RGBA** 再声明 `RGBA_8888`，导致 R/B 互换（缩略图偏色，而走系统解码的详情原图正常）。现全链路统一 **BGRA_8888**：turbojpeg `TJPF_BGRA`、libavif `AVIF_RGB_FORMAT_BGRA`、`SetPixelFormat` + 显式 `SetSrcPixelFormat` |
 | **v2.11.73** | **修网络超时与原生解码降级**：①`request()` 读取超时 30s→**60s**，并新增 `connectTimeout=15s`（官方源 `kha.g.img.13th.tech` 的 10MB+ 原图在移动网络下 30s 不够，报 `2300028 Operation timeout`）；②**超时/DNS 失败不再换协议重试**——此前超时后仍会 https→http 再试一次，一次点击要等两轮共 60s（日志里同一秒两条相同超时即由此产生）；③原生 `DecodeCore` 增加**去 `desiredSize` 重试**：API 12 部分格式（如 WebP）不支持解码时缩放，带缩放参数会直接失败，现在改为全尺寸解码后用 `OH_PixelmapNative_Scale` 缩放；④原生失败原因带上**阶段与 `Image_ErrorCode`**（如 `core pixelmap ec=7700201`），不再只有笼统的 `core decode failed` |
