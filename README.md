@@ -8,7 +8,7 @@
 > 本项目为**技术学习与移植演示**，与次元壁纸/AWSL 官方无任何关联。
 
 - **包名**：`com.ciyuan.wallpaper`
-- **目标平台**：HarmonyOS NEXT，`compatibleSdkVersion` = `26.0.0`（API 26，需 HarmonyOS 26 及以上设备；v2.11.68 前为 API 12）
+- **目标平台**：HarmonyOS NEXT，`compatibleSdkVersion` = `5.0.0(12)`（**最低 API 12**，兼容 HarmonyOS NEXT 及以上设备）
 - **默认主图源**：原版官方源 `rank/main`（真实次元壁纸，B 站图床稳定直链）
 
 ---
@@ -66,11 +66,11 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.71.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.72.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.71.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.71.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.72.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.72.hap
 ```
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
@@ -117,6 +117,7 @@ bash build.sh
 
 | 版本 | 关键变更 |
 |---|---|
+| **v2.11.72** | **最低 API 降回 12 + 内置原生解码「组合拳」**：①`compatibleSdkVersion`/`targetSdkVersion` 回到 `5.0.0(12)`，兼容更多设备；②新增原生模块 `libimage_decode.so`（NAPI + 异步工作线程）——**AVIF/HEIF 走 libavif + dav1d**、**JPEG（含渐进式）走 libjpeg-turbo**、其余格式（PNG/WebP/GIF/BMP）走 **Image_NativeModule**，专门解码失败时再由 Image_NativeModule 末级兜底；③原生解码失败自动回退 ArkTS `image` 解码，任何机型都不会因原生库异常而白屏；④三个三方库（libavif / libjpeg-turbo / libdav1d）均用 OHOS clang-15 交叉编译为 arm64 并打包进 HAP |
 | **v2.11.71** | **修复萌鼠动漫等随机（易变）图源保存提示误报「原图不可用（image load failed）」**：易变源 `thumbUrl === url`（缩略图即原图），原图任务整个跳过、全程无任何错误，但 `obtainBuffer()` 仍把「使用缩略图字节」一律当作降级、并读取了从未被真实错误覆盖的默认占位文案 `image load failed`，导致误报。现仅在「存在真实独立的原图（`hasOriginal`）且它已失败（`originalFailed`）」时才标记降级；易变源直接按保存成功处理。同时把默认 `lastErr` 占位值置空，错误页文案兜底为「网络或解码错误」 |
 | **v2.11.70** | **修复「第一次保存失败、第二次才成功」**：等待大原图的时限由 6 秒放宽到 30 秒（20MB 级大图"下载+去混淆+校验+解码"远超 6 秒，被误判为失败；后台任务完成后再按就成功——根因即此）；**XOR 去混淆改按 4 字节字原地运算**，比逐字节快约 4 倍且免一次大缓冲拷贝；**死链快速失败**：HTTP 状态码错误（如 http 567）不再尝试 https→http 换协议重试；修复错误日志主机名重复（`@ host @ host`）；保存回退时按真实原因提示（如「原图已失效（图床死链 http 567），已保存预览图」） |
 | **v2.11.69** | **修复部分图源的「单字节 XOR 混淆图片」**：实测某自定义源对图片逐字节异或加密（不同响应 key 不同：`0x54` / `0xA6`），导致 `格式=unknown` + `Decode image header failed`。新增 `deobfuscate()`——利用图片魔数固定这一特性**反推 key 并自校验**（如 WebP 头 `RIFF…WEBP` 共 8 个已知字节），命中即整块还原；仅在格式无法识别时尝试，正常图片零影响。已用两条真实日志字节验证还原出合法 WebP |

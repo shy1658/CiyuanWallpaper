@@ -1,0 +1,24 @@
+{
+  // 仓库中 entry/build-profile.json5 同样被 .gitignore 忽略（根目录规则按同名匹配）。
+  // 首次构建请复制本文件为 entry/build-profile.json5。
+  "apiType": "stageMode",
+  "buildOption": {
+    "externalNativeOptions": {
+      "path": "./src/main/cpp/CMakeLists.txt",
+      "arguments": "",
+      "cppFlags": "",
+      "abiFilters": [
+        "arm64-v8a"
+      ]
+    },
+    "arkOptions": {
+      "buildProfileFields": {}
+    }
+  },
+  "targets": [
+    {
+      "name": "default",
+      "runtimeOS": "HarmonyOS"
+    }
+  ]
+}

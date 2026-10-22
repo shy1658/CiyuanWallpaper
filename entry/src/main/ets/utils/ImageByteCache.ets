@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
 import { image } from '@kit.ImageKit';
 import { BusinessError } from '@ohos.base';
+import { decodePixelMap } from 'libimage_decode.so';
 import { describeError, Logger } from './Logger';
 
 /**
@@ -239,7 +240,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.71',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.72',
           // 仅声明系统原生支持的常见格式（JPEG/PNG/WebP/GIF/BMP）。
           // 刻意不含 image/avif 与 */* 通配：HarmonyOS API 12 原生解码器不支持 AVIF
           // （AVIF 自 API 26 才支持），若按 Accept 协商出 AVIF 会触发 “Decode image header failed”。
@@ -311,7 +312,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.71',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.72',
           // 与 downloadOnce 一致：仅声明系统原生支持格式，规避 AVIF 协商导致的无解码
           'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
@@ -417,6 +418,17 @@ export class ImageByteCache {
    * 注意：只影响预览渲染；保存始终使用原始字节，画质不受影响。
    */
   static async toPixelMapScaled(buf: ArrayBuffer, maxSide: number): Promise<image.PixelMap> {
+    // 1) 原生解码优先（异步线程，不阻塞 UI）：
+    //    AVIF/HEIF -> libavif + dav1d；JPEG（含渐进式）-> libjpeg-turbo；其余 -> Image_NativeModule
+    try {
+      const nativeMap: image.PixelMap | undefined = await decodePixelMap(buf, maxSide);
+      if (nativeMap) {
+        return nativeMap;
+      }
+    } catch (e) {
+      Logger.w('ImageByteCache', `原生解码失败，回退系统解码：${describeError(e)}`);
+    }
+    // 2) 系统 ArkTS 解码兜底（原生库异常/不支持的场景仍可工作）
     let source: image.ImageSource;
     try {
       source = image.createImageSource(buf);
@@ -452,7 +464,7 @@ export class ImageByteCache {
     const detail = describeError(e);
     let hint = '';
     if (fmt === 'avif/heif') {
-      hint = '（AVIF/HEIF：API 26 起系统原生解码；若仍失败说明数据损坏或不完整）';
+      hint = '（AVIF/HEIF：已内置 libavif + dav1d 解码；若仍失败说明数据损坏或不完整）';
     } else if (fmt === 'unknown') {
       hint = `（字节头无法识别为已知图片格式，可能是 HTML 错误页或加密/损坏数据，前16字节=${ImageByteCache.headHex(buf)}）`;
     }

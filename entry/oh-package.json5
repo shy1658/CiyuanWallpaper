@@ -5,5 +5,7 @@
   "main": "",
   "author": "",
   "license": "",
-  "dependencies": {}
+  "dependencies": {
+    "libimage_decode.so": "file:./src/main/cpp/types/libimage_decode"
+  }
 }

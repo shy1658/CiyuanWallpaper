@@ -1,0 +1,58 @@
+{
+  // 仓库中 build-profile.json5 因含签名密码被 .gitignore 忽略。
+  // 首次构建请复制本文件为 build-profile.json5，并填写自己的签名材料路径与密码。
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/path/to/app-debug-cert.cer",
+          "keyAlias": "your-key-alias",
+          "keyPassword": "<encrypted-or-plain-password>",
+          "profile": "/path/to/your.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/path/to/app.jks",
+          "storePassword": "<encrypted-or-plain-password>"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        // 最低支持 API 12，兼容 HarmonyOS NEXT 及以上设备
+        "compatibleSdkVersion": "5.0.0(12)",
+        "targetSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "arkOptions": {
+            "buildProfileFields": {}
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug"
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}
