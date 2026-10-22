@@ -66,11 +66,11 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.70.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.71.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.70.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.70.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.71.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.71.hap
 ```
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
@@ -117,6 +117,7 @@ bash build.sh
 
 | 版本 | 关键变更 |
 |---|---|
+| **v2.11.71** | **修复萌鼠动漫等随机（易变）图源保存提示误报「原图不可用（image load failed）」**：易变源 `thumbUrl === url`（缩略图即原图），原图任务整个跳过、全程无任何错误，但 `obtainBuffer()` 仍把「使用缩略图字节」一律当作降级、并读取了从未被真实错误覆盖的默认占位文案 `image load failed`，导致误报。现仅在「存在真实独立的原图（`hasOriginal`）且它已失败（`originalFailed`）」时才标记降级；易变源直接按保存成功处理。同时把默认 `lastErr` 占位值置空，错误页文案兜底为「网络或解码错误」 |
 | **v2.11.70** | **修复「第一次保存失败、第二次才成功」**：等待大原图的时限由 6 秒放宽到 30 秒（20MB 级大图"下载+去混淆+校验+解码"远超 6 秒，被误判为失败；后台任务完成后再按就成功——根因即此）；**XOR 去混淆改按 4 字节字原地运算**，比逐字节快约 4 倍且免一次大缓冲拷贝；**死链快速失败**：HTTP 状态码错误（如 http 567）不再尝试 https→http 换协议重试；修复错误日志主机名重复（`@ host @ host`）；保存回退时按真实原因提示（如「原图已失效（图床死链 http 567），已保存预览图」） |
 | **v2.11.69** | **修复部分图源的「单字节 XOR 混淆图片」**：实测某自定义源对图片逐字节异或加密（不同响应 key 不同：`0x54` / `0xA6`），导致 `格式=unknown` + `Decode image header failed`。新增 `deobfuscate()`——利用图片魔数固定这一特性**反推 key 并自校验**（如 WebP 头 `RIFF…WEBP` 共 8 个已知字节），命中即整块还原；仅在格式无法识别时尝试，正常图片零影响。已用两条真实日志字节验证还原出合法 WebP |
 | **v2.11.68** | **升级到 API 26（HarmonyOS 26）**：`compatibleSdkVersion`/`targetSdkVersion` 由 `5.0.0(12)` 升至 `26.0.0(26)`（⚠️ 仅支持 HarmonyOS 26 及以上设备），系统 image kit 原生解码 **AVIF/HEIF**——此前 API 12 解不开的格式现在直接可看；解码失败日志对无法识别的格式附带**前 16 字节十六进制**，一眼区分 HTML 错误页与乱码数据 |

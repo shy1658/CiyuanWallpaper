@@ -57,10 +57,12 @@ struct DetailPage {
   private thumbOk: boolean = false;
   private originalSettled: boolean = false;
   private originalOk: boolean = false;
+  /** 易变源（thumbUrl===url）原图即缩略图，不存在「真降级」；此标记仅用于真实独立原图失败时 */
+  private originalFailed: boolean = false;
   /** 当前预览是否已升级为原图（防止缩略图晚到把高清图顶掉） */
   private showingOriginal: boolean = false;
   /** 最后一次失败的真实原因（全部失败时展示） */
-  private lastErr: Error = new Error('image load failed');
+  private lastErr: Error = new Error('');
   /** 本次保存是否回退到了缩略图字节，用于提示用户 */
   private usedFallbackBuffer: boolean = false;
   /** 回退原因（原图失败的真实错误），用于区分死链/截断等场景给出明确提示 */
@@ -127,6 +129,7 @@ struct DetailPage {
         this.loadState = 'ok';
       }).catch((e: Error) => {
         this.originalSettled = true;
+        this.originalFailed = true;
         this.lastErr = e;
         Logger.e('DetailPage', '原图加载失败', e);
         this.reportIfAllFailed();
@@ -144,7 +147,9 @@ struct DetailPage {
     }
     if (this.thumbSettled && this.originalSettled && !this.thumbOk && !this.originalOk) {
       this.loadState = 'error';
-      this.errorText = `图片加载失败：${(this.lastErr && this.lastErr.message) ? this.lastErr.message : '未知错误'}`;
+      const msg = (this.lastErr && this.lastErr.message && this.lastErr.message.length > 0)
+        ? this.lastErr.message : '网络或解码错误';
+      this.errorText = `图片加载失败：${msg}`;
     }
   }
 
@@ -199,10 +204,15 @@ struct DetailPage {
           // 原图加载失败：回退缩略图
         }
       }
-      // 3) 缩略图已缓存：兜底返回（记录原因，保存完成时给用户明确提示）
+      // 3) 缩略图已缓存：兜底返回（仅当存在「真实独立原图」且它已失败才算降级）
       if (this.prefetchedBuffer) {
-        this.usedFallbackBuffer = true;
-        this.fallbackReason = this.lastErr ? this.lastErr.message : '';
+        if (this.hasOriginal && this.originalFailed) {
+          this.usedFallbackBuffer = true;
+          this.fallbackReason = this.lastErr ? this.lastErr.message : '';
+        } else {
+          // 易变源（thumbUrl===url）：缩略图即原图，按成功处理
+          this.originalBuffer = this.prefetchedBuffer;
+        }
         return this.prefetchedBuffer;
       }
       // 4) 缩略图仍在加载：最多等 4 秒
@@ -211,7 +221,12 @@ struct DetailPage {
           const res = await this.withTimeout(this.thumbPromise, 4000);
           if (res) {
             this.prefetchedBuffer = res.buf;
-            this.usedFallbackBuffer = true;
+            if (this.hasOriginal && this.originalFailed) {
+              this.usedFallbackBuffer = true;
+              this.fallbackReason = this.lastErr ? this.lastErr.message : '';
+            } else {
+              this.originalBuffer = res.buf;
+            }
             return res.buf;
           }
         } catch (e) {
