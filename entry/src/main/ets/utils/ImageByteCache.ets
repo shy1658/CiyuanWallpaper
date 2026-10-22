@@ -67,17 +67,9 @@ export class ImageByteCache {
           return buf;
         } catch (e) {
           lastErr = ImageByteCache.toError(e, ImageByteCache.hostOf(u));
-          // 与协议无关的失败不再换协议重试（否则一次点击要等两轮超时）：
-          // - HTTP 状态码错误（567 死链 / 404）
-          // - 超时 2300028（同一台服务器换 http/https 一样慢）
-          // - DNS 解析失败（2300006 / 2300007）
-          const msg = lastErr.message;
-          const lower = msg.toLowerCase();
-          const hopeless = msg.indexOf('http ') === 0
-            || msg.indexOf('2300028') >= 0 || lower.indexOf('timeout') >= 0
-            || msg.indexOf('2300006') >= 0 || msg.indexOf('2300007') >= 0
-            || lower.indexOf('resolve') >= 0;
-          if (hopeless) {
+          // 只有“换协议可能有效”的连接层错误才继续尝试下一候选，
+          // 其余直接结束，避免一次点击等两轮。
+          if (!ImageByteCache.shouldTryOtherScheme(lastErr.message)) {
             break;
           }
         }
@@ -112,19 +104,59 @@ export class ImageByteCache {
     return buf;
   }
 
-  /** 候选地址：优先尝试 https（无需明文许可），再回退另一协议 */
+  /**
+   * 候选地址：**尊重源站协议**，第一候选永远是 URL 自身的 scheme。
+   *
+   * 为什么不再"http 强制升级 https"：官方列表里约一半图址是 http://，
+   * 其中 13th.tech 系列图床（lux1 / kha / bitiful / super / qn 等）只监听 80，
+   * 443 直接 No route to host。强试 https 必然 2300007 Failed to connect，
+   * 原图就永远拿不到（缩略图恰好落在支持 https 的主机，所以只有原图失败）。
+   *
+   * 另一协议仅作为备选，且只在"连接层失败"时才会被真正尝试
+   * （见 shouldTryOtherScheme），避免无意义的双倍等待。
+   */
   private static candidates(url: string): string[] {
     const list: string[] = [];
     if (url.startsWith('http://')) {
-      list.push('https://' + url.substring('http://'.length));
       list.push(url);
+      list.push('https://' + url.substring('http://'.length));
+    } else if (url.startsWith('https://')) {
+      list.push(url);
+      list.push('http://' + url.substring('https://'.length));
     } else {
       list.push(url);
-      if (url.startsWith('https://')) {
-        list.push('http://' + url.substring('https://'.length));
-      }
     }
     return list;
+  }
+
+  /**
+   * 是否值得换协议重试（http ↔ https 指向同一台服务器）：
+   * - 2300007 Couldn't connect：端口/协议不匹配（HTTP-only 图床），换协议可能成功；
+   * - TLS / 证书 / 握手类错误：换成 http 可能成功；
+   * 其余一律放弃：
+   * - HTTP 状态码错误（567 死链 / 404）与协议无关；
+   * - 2300006 DNS 解析失败（换协议也解析不到）；
+   * - 2300028 超时（服务器可达但慢，换协议只是再等一轮）。
+   */
+  private static shouldTryOtherScheme(msg: string): boolean {
+    const lower = msg.toLowerCase();
+    if (msg.indexOf('http ') === 0) {
+      return false;
+    }
+    if (msg.indexOf('2300006') >= 0 || lower.indexOf('resolve') >= 0) {
+      return false;
+    }
+    if (msg.indexOf('2300028') >= 0 || lower.indexOf('timeout') >= 0) {
+      return false;
+    }
+    if (msg.indexOf('2300007') >= 0) {
+      return true;
+    }
+    if (lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0
+      || lower.indexOf('certificate') >= 0 || lower.indexOf('handshake') >= 0) {
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -247,7 +279,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.74',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.75',
           // 仅声明系统原生支持的常见格式（JPEG/PNG/WebP/GIF/BMP）。
           // 刻意不含 image/avif 与 */* 通配：HarmonyOS API 12 原生解码器不支持 AVIF
           // （AVIF 自 API 26 才支持），若按 Accept 协商出 AVIF 会触发 “Decode image header failed”。
@@ -322,7 +354,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.74',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.75',
           // 与 downloadOnce 一致：仅声明系统原生支持格式，规避 AVIF 协商导致的无解码
           'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
