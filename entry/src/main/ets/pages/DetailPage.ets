@@ -63,6 +63,8 @@ struct DetailPage {
   private lastErr: Error = new Error('image load failed');
   /** 本次保存是否回退到了缩略图字节，用于提示用户 */
   private usedFallbackBuffer: boolean = false;
+  /** 回退原因（原图失败的真实错误），用于区分死链/截断等场景给出明确提示 */
+  private fallbackReason: string = '';
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string> | undefined;
@@ -176,16 +178,19 @@ struct DetailPage {
    */
   private async obtainBuffer(): Promise<ArrayBuffer> {
     this.usedFallbackBuffer = false;
+    this.fallbackReason = '';
     const item = this.item;
     if (item && !item.local) {
       // 1) 原图已缓存：直接返回
       if (this.originalBuffer) {
         return this.originalBuffer;
       }
-      // 2) 等待大原图下载（本地保存无窗口限制，原图优先）
+      // 2) 等待大原图下载（本地保存无窗口限制，原图优先）。
+      //    大图 + XOR 去混淆 + 校验解码可能远超小图耗时（实测 20MB 图 >10s），
+      //    旧的 6 秒上限会把"慢"误判成"失败"——第二次点才成功的根因即在此。
       if (this.hasOriginal && this.originalPromise && !this.originalSettled) {
         try {
-          const res = await this.withTimeout(this.originalPromise, 6000);
+          const res = await this.withTimeout(this.originalPromise, 30000);
           if (res) {
             this.originalBuffer = res.buf;
             return res.buf;
@@ -194,9 +199,10 @@ struct DetailPage {
           // 原图加载失败：回退缩略图
         }
       }
-      // 3) 缩略图已缓存：兜底返回
+      // 3) 缩略图已缓存：兜底返回（记录原因，保存完成时给用户明确提示）
       if (this.prefetchedBuffer) {
         this.usedFallbackBuffer = true;
+        this.fallbackReason = this.lastErr ? this.lastErr.message : '';
         return this.prefetchedBuffer;
       }
       // 4) 缩略图仍在加载：最多等 4 秒
@@ -265,8 +271,16 @@ struct DetailPage {
       const buffer = await this.obtainBuffer();
       await ImageSaveUtil.saveToDownloadDir(context, this.item, res, buffer);
       if (this.usedFallbackBuffer) {
+        const reason = this.fallbackReason;
+        let msg = '原图不可用（数据不完整或加载失败），已保存当前预览图';
+        if (reason.indexOf('http 567') >= 0) {
+          // 酷安等图床死链：原图在服务端已被删除，任何客户端都拿不到
+          msg = '原图已失效（图床死链 http 567），已保存预览图';
+        } else if (reason.length > 0) {
+          msg = `原图不可用（${reason}），已保存预览图`;
+        }
         promptAction.showToast({
-          message: '原图不可用（数据不完整或加载失败），已保存当前预览图',
+          message: msg,
           duration: 3000
         });
       } else {

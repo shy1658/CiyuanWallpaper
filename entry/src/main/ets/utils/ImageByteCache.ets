@@ -66,6 +66,12 @@ export class ImageByteCache {
           return buf;
         } catch (e) {
           lastErr = ImageByteCache.toError(e, ImageByteCache.hostOf(u));
+          // HTTP 状态码错误（如 http 567 死链、404）与协议无关：https/http 同一台服务器，
+          // 换协议重试必然同样失败，直接终止省一次超时等待（死链快速失败）。
+          const msg = lastErr.message;
+          if (msg.indexOf('http ') === 0) {
+            break;
+          }
         }
       }
       throw lastErr;
@@ -177,13 +183,20 @@ export class ImageByteCache {
         }
       }
       if (match && key > 0) {
-        // key=0 视为未混淆（异常巧合），跳过
-        const out = new Uint8Array(buf.byteLength);
-        for (let i = 0; i < out.length; i++) {
-          out[i] = b[i] ^ key;
+        // key=0 视为未混淆（异常巧合），跳过。
+        // 原地按 4 字节字 XOR：比逐字节循环快约 4 倍，且免去一次大缓冲拷贝
+        // （实测 20MB 原图逐字节还原在主线程可感知卡顿，字运算后基本瞬时）。
+        const pattern = ((key) | (key << 8) | (key << 16) | (key << 24)) >>> 0;
+        const words = Math.floor(b.length / 4);
+        const w = new Uint32Array(buf, 0, words);
+        for (let i = 0; i < words; i++) {
+          w[i] = (w[i] ^ pattern) >>> 0;
+        }
+        for (let i = words * 4; i < b.length; i++) {
+          b[i] = (b[i] ^ key) & 0xFF;
         }
         Logger.i('ImageByteCache', `检测到单字节 XOR 混淆图片（key=0x${key.toString(16)}），已还原 ${buf.byteLength} 字节`);
-        return out.buffer;
+        return buf;
       }
     }
     return buf;
@@ -198,7 +211,9 @@ export class ImageByteCache {
    */
   private static toError(e: Object, ctx?: string): Error {
     const detail = describeError(e);
-    const suffix = ctx && ctx.length > 0 ? ` @ ${ctx}` : '';
+    // 防重复包装：上层 catch 再次调用 toError 时不再重复追加同一主机
+    // （此前日志出现 "http 567 @ image.coolapk.com @ image.coolapk.com"）。
+    const suffix = ctx && ctx.length > 0 && detail.indexOf(`@ ${ctx}`) < 0 ? ` @ ${ctx}` : '';
     return new Error(`${detail}${suffix}`);
   }
 
@@ -224,7 +239,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.69',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.70',
           // 仅声明系统原生支持的常见格式（JPEG/PNG/WebP/GIF/BMP）。
           // 刻意不含 image/avif 与 */* 通配：HarmonyOS API 12 原生解码器不支持 AVIF
           // （AVIF 自 API 26 才支持），若按 Accept 协商出 AVIF 会触发 “Decode image header failed”。
@@ -296,7 +311,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.69',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.70',
           // 与 downloadOnce 一致：仅声明系统原生支持格式，规避 AVIF 协商导致的无解码
           'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
