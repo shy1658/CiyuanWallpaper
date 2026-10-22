@@ -67,10 +67,17 @@ export class ImageByteCache {
           return buf;
         } catch (e) {
           lastErr = ImageByteCache.toError(e, ImageByteCache.hostOf(u));
-          // HTTP 状态码错误（如 http 567 死链、404）与协议无关：https/http 同一台服务器，
-          // 换协议重试必然同样失败，直接终止省一次超时等待（死链快速失败）。
+          // 与协议无关的失败不再换协议重试（否则一次点击要等两轮超时）：
+          // - HTTP 状态码错误（567 死链 / 404）
+          // - 超时 2300028（同一台服务器换 http/https 一样慢）
+          // - DNS 解析失败（2300006 / 2300007）
           const msg = lastErr.message;
-          if (msg.indexOf('http ') === 0) {
+          const lower = msg.toLowerCase();
+          const hopeless = msg.indexOf('http ') === 0
+            || msg.indexOf('2300028') >= 0 || lower.indexOf('timeout') >= 0
+            || msg.indexOf('2300006') >= 0 || msg.indexOf('2300007') >= 0
+            || lower.indexOf('resolve') >= 0;
+          if (hopeless) {
             break;
           }
         }
@@ -240,7 +247,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.72',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.73',
           // 仅声明系统原生支持的常见格式（JPEG/PNG/WebP/GIF/BMP）。
           // 刻意不含 image/avif 与 */* 通配：HarmonyOS API 12 原生解码器不支持 AVIF
           // （AVIF 自 API 26 才支持），若按 Accept 协商出 AVIF 会触发 “Decode image header failed”。
@@ -249,7 +256,10 @@ export class ImageByteCache {
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
         // API >= 23 时显式放行 64MB（默认仅 5MB）；API < 23 无效，超限走流式
         maxLimit: ImageByteCache.MAX_IMAGE_BYTES,
-        readTimeout: 30000
+        // 大原图（尤其官方源 kha.g.img.13th.tech 的 10MB+ 图）在移动网络下 30s 不够，
+        // 会报 2300028 Operation timeout；与流式路径统一放宽到 60s。
+        connectTimeout: 15000,
+        readTimeout: 60000
       };
       const resp = await request.request(u, opts);
       if (resp.responseCode !== 200) {
@@ -312,11 +322,12 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.72',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.73',
           // 与 downloadOnce 一致：仅声明系统原生支持格式，规避 AVIF 协商导致的无解码
           'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
-        // 大文件弱网放宽超时（request() 快路径保持 30s 不变）
+        // 大文件弱网放宽超时（与 request() 快路径一致：连接 15s、读取 60s）
+        connectTimeout: 15000,
         readTimeout: 60000
       };
       request.requestInStream(u, opts, (err: BusinessError, code: number) => {

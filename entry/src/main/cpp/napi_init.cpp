@@ -152,12 +152,16 @@ bool DecodeJpeg(const uint8_t* data, size_t len, std::vector<uint8_t>& outRgba, 
     return ok;
 }
 
-// 系统原生解码（Image_NativeModule）：支持 desiredSize 缩放，避免大图超出纹理上限
-OH_PixelmapNative* DecodeCore(const uint8_t* data, size_t len, uint32_t maxSide) {
+// 系统原生解码（Image_NativeModule）。
+// 注意 API 12 的部分格式（如 WebP）不支持在 CreatePixelmap 时按 desiredSize 缩放，
+// 会直接返回错误；因此带 desiredSize 失败后，必须再去掉 options 全尺寸解码，
+// 最后用 OH_PixelmapNative_Scale 缩放，否则会误判为“core decode failed”。
+OH_PixelmapNative* DecodeCore(const uint8_t* data, size_t len, uint32_t maxSide, std::string& reason) {
     OH_ImageSourceNative* source = nullptr;
     Image_ErrorCode ec = OH_ImageSourceNative_CreateFromData(const_cast<uint8_t*>(data), len, &source);
     if (ec != IMAGE_SUCCESS || source == nullptr) {
         LOGE("core: create source failed: %{public}d", static_cast<int>(ec));
+        reason = "core source ec=" + std::to_string(static_cast<int>(ec));
         return nullptr;
     }
 
@@ -172,29 +176,51 @@ OH_PixelmapNative* DecodeCore(const uint8_t* data, size_t len, uint32_t maxSide)
         OH_ImageSourceInfo_Release(info);
     }
 
-    OH_DecodingOptions* options = nullptr;
-    if (OH_DecodingOptions_Create(&options) != IMAGE_SUCCESS || options == nullptr) {
-        OH_ImageSourceNative_Release(source);
-        return nullptr;
-    }
-    if (width > 0 && height > 0 && maxSide > 0) {
-        uint32_t longSide = std::max(width, height);
-        if (longSide > maxSide) {
+    const uint32_t longSide = std::max(width, height);
+    const bool wantScale = (width > 0 && height > 0 && maxSide > 0 && longSide > maxSide);
+
+    // 第一次尝试：带 desiredSize（大图首选，省内存）
+    if (wantScale) {
+        OH_DecodingOptions* options = nullptr;
+        if (OH_DecodingOptions_Create(&options) == IMAGE_SUCCESS && options != nullptr) {
             double ratio = static_cast<double>(maxSide) / static_cast<double>(longSide);
             Image_Size desired;
             desired.width = std::max<uint32_t>(1, static_cast<uint32_t>(width * ratio));
             desired.height = std::max<uint32_t>(1, static_cast<uint32_t>(height * ratio));
             OH_DecodingOptions_SetDesiredSize(options, &desired);
+
+            OH_PixelmapNative* pixelmap = nullptr;
+            ec = OH_ImageSourceNative_CreatePixelmap(source, options, &pixelmap);
+            OH_DecodingOptions_Release(options);
+            if (ec == IMAGE_SUCCESS && pixelmap != nullptr) {
+                OH_ImageSourceNative_Release(source);
+                return pixelmap;
+            }
+            LOGE("core: create pixelmap with desiredSize failed: %{public}d, retry full size",
+                 static_cast<int>(ec));
         }
     }
 
+    // 第二次尝试：不带缩放参数全尺寸解码，再按长边缩放
+    OH_DecodingOptions* plainOptions = nullptr;
+    if (OH_DecodingOptions_Create(&plainOptions) != IMAGE_SUCCESS || plainOptions == nullptr) {
+        OH_ImageSourceNative_Release(source);
+        reason = "core options create failed";
+        return nullptr;
+    }
     OH_PixelmapNative* pixelmap = nullptr;
-    ec = OH_ImageSourceNative_CreatePixelmap(source, options, &pixelmap);
-    OH_DecodingOptions_Release(options);
+    ec = OH_ImageSourceNative_CreatePixelmap(source, plainOptions, &pixelmap);
+    OH_DecodingOptions_Release(plainOptions);
     OH_ImageSourceNative_Release(source);
+
     if (ec != IMAGE_SUCCESS || pixelmap == nullptr) {
         LOGE("core: create pixelmap failed: %{public}d", static_cast<int>(ec));
+        reason = "core pixelmap ec=" + std::to_string(static_cast<int>(ec));
         return nullptr;
+    }
+    if (wantScale) {
+        float scale = static_cast<float>(maxSide) / static_cast<float>(longSide);
+        OH_PixelmapNative_Scale(pixelmap, scale, scale);
     }
     return pixelmap;
 }
@@ -262,12 +288,16 @@ OH_PixelmapNative* DecodeToPixelMap(const uint8_t* data, size_t len, uint32_t ma
     }
 
     // 其余格式 & 专门解码失败后的末级兜底：系统原生解码
-    OH_PixelmapNative* pm = DecodeCore(data, len, maxSide);
+    std::string coreReason;
+    OH_PixelmapNative* pm = DecodeCore(data, len, maxSide, coreReason);
     if (pm != nullptr) {
         return pm;
     }
     if (reason.empty()) {
-        reason = "core decode failed";
+        reason = coreReason.empty() ? "core decode failed" : coreReason;
+    } else if (!coreReason.empty()) {
+        // 保留专门解码器的失败原因，同时附上系统兜底的错误码，便于一次定位
+        reason += " / " + coreReason;
     }
     return nullptr;
 }

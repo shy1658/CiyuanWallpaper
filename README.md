@@ -66,11 +66,11 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.72.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.73.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.72.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.72.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.73.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.73.hap
 ```
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
@@ -117,6 +117,7 @@ bash build.sh
 
 | 版本 | 关键变更 |
 |---|---|
+| **v2.11.73** | **修网络超时与原生解码降级**：①`request()` 读取超时 30s→**60s**，并新增 `connectTimeout=15s`（官方源 `kha.g.img.13th.tech` 的 10MB+ 原图在移动网络下 30s 不够，报 `2300028 Operation timeout`）；②**超时/DNS 失败不再换协议重试**——此前超时后仍会 https→http 再试一次，一次点击要等两轮共 60s（日志里同一秒两条相同超时即由此产生）；③原生 `DecodeCore` 增加**去 `desiredSize` 重试**：API 12 部分格式（如 WebP）不支持解码时缩放，带缩放参数会直接失败，现在改为全尺寸解码后用 `OH_PixelmapNative_Scale` 缩放；④原生失败原因带上**阶段与 `Image_ErrorCode`**（如 `core pixelmap ec=7700201`），不再只有笼统的 `core decode failed` |
 | **v2.11.72** | **最低 API 降回 12 + 内置原生解码「组合拳」**：①`compatibleSdkVersion`/`targetSdkVersion` 回到 `5.0.0(12)`，兼容更多设备；②新增原生模块 `libimage_decode.so`（NAPI + 异步工作线程）——**AVIF/HEIF 走 libavif + dav1d**、**JPEG（含渐进式）走 libjpeg-turbo**、其余格式（PNG/WebP/GIF/BMP）走 **Image_NativeModule**，专门解码失败时再由 Image_NativeModule 末级兜底；③原生解码失败自动回退 ArkTS `image` 解码，任何机型都不会因原生库异常而白屏；④三个三方库（libavif / libjpeg-turbo / libdav1d）均用 OHOS clang-15 交叉编译为 arm64 并打包进 HAP |
 | **v2.11.71** | **修复萌鼠动漫等随机（易变）图源保存提示误报「原图不可用（image load failed）」**：易变源 `thumbUrl === url`（缩略图即原图），原图任务整个跳过、全程无任何错误，但 `obtainBuffer()` 仍把「使用缩略图字节」一律当作降级、并读取了从未被真实错误覆盖的默认占位文案 `image load failed`，导致误报。现仅在「存在真实独立的原图（`hasOriginal`）且它已失败（`originalFailed`）」时才标记降级；易变源直接按保存成功处理。同时把默认 `lastErr` 占位值置空，错误页文案兜底为「网络或解码错误」 |
 | **v2.11.70** | **修复「第一次保存失败、第二次才成功」**：等待大原图的时限由 6 秒放宽到 30 秒（20MB 级大图"下载+去混淆+校验+解码"远超 6 秒，被误判为失败；后台任务完成后再按就成功——根因即此）；**XOR 去混淆改按 4 字节字原地运算**，比逐字节快约 4 倍且免一次大缓冲拷贝；**死链快速失败**：HTTP 状态码错误（如 http 567）不再尝试 https→http 换协议重试；修复错误日志主机名重复（`@ host @ host`）；保存回退时按真实原因提示（如「原图已失效（图床死链 http 567），已保存预览图」） |
