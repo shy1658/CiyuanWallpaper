@@ -3,6 +3,55 @@ import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@ohos.base';
 
+/**
+ * 把任意异常值规范为可读字符串，保证日志永远有细节、不再出现
+ * “undefined: undefined” 或 “[object Object]” 这类空信息：
+ * - 标准 Error：取 message；
+ * - 裸 BusinessError（只有 code、无 name/message/stack）：打出 code；
+ * - 字符串 / 数字 / 布尔：原样或标注；
+ * - 空值（undefined/null）：标注「空异常」；
+ * - 其它对象：兜底用 typeof + JSON.stringify 序列化自有字段。
+ */
+export function describeError(e: Object | undefined | null): string {
+  if (e === undefined || e === null) {
+    return '(空异常)';
+  }
+  const t = typeof e;
+  if (t === 'string') {
+    return e as string;
+  }
+  if (t === 'number') {
+    return `(错误码 ${e as number})`;
+  }
+  if (t === 'boolean') {
+    return `(非错误值 ${e as boolean})`;
+  }
+  const be = e as BusinessError;
+  const code = be?.code;
+  const name = be?.name;
+  const msg = be?.message;
+  if (code !== undefined && code !== null) {
+    return `[code ${code}] ${msg ?? name ?? ''}`.trim();
+  }
+  if (msg !== undefined && msg !== null && (msg as string).length > 0) {
+    return msg as string;
+  }
+  if (name !== undefined && name !== null && (name as string).length > 0) {
+    return name as string;
+  }
+  // 兜底：把任意对象的自有字段序列化，避免空信息
+  let json = '';
+  try {
+    json = JSON.stringify(e);
+  } catch (err) {
+    json = '';
+  }
+  if (json && json !== '{}' && json !== 'null') {
+    return `${t}=${json}`;
+  }
+  return `${t}=${String(e)}`;
+}
+
 /** 单条日志 */
 export interface LogEntry {
   time: number;
@@ -62,23 +111,12 @@ export class Logger {
     Logger.getInstance().append('WARN', tag, message);
   }
 
-  static e(tag: string, message: string, error?: Error): void {
+  static e(tag: string, message: string, error?: Object): void {
     let msg = message;
-    if (error) {
-      // 容错：网络/解码栈常抛出裸 BusinessError（只有 code、无 name/message/stack），
-      // 若只取 error.name/error.message 会变成 "undefined: undefined"，真实错误码丢失。
-      const code = (error as BusinessError).code;
-      const name = error.name;
-      const emsg = error.message;
-      const stack = error.stack;
-      if (code !== undefined && code !== null) {
-        msg += ` | code=${code}`;
-      }
-      if ((name !== undefined && name.length > 0) || (emsg !== undefined && emsg.length > 0)) {
-        msg += ` | ${name ?? ''}: ${emsg ?? ''}`;
-      }
-      if (stack !== undefined && stack.length > 0) {
-        msg += ` | ${stack}`;
+    if (error !== undefined && error !== null) {
+      const detail = describeError(error);
+      if (detail && detail.length > 0) {
+        msg += ` | ${detail}`;
       }
     }
     Logger.getInstance().append('ERROR', tag, msg);

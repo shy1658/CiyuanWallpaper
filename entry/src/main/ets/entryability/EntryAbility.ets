@@ -5,7 +5,7 @@ import { FavoritesStore } from '../utils/FavoritesStore';
 import { SourceStore } from '../utils/SourceStore';
 import { AuthStore } from '../utils/AuthStore';
 import { WallpaperStore } from '../viewmodel/WallpaperStore';
-import { Logger } from '../utils/Logger';
+import { Logger, describeError } from '../utils/Logger';
 import { HistoryStore } from '../utils/HistoryStore';
 
 export default class EntryAbility extends UIAbility {
@@ -36,7 +36,7 @@ export default class EntryAbility extends UIAbility {
           Logger.fatal('Global', 'uncaught: ' + errMsg);
         },
         onException(errObject: Error): void {
-          Logger.fatal('Global', 'exception: ' + errObject.message + ' | ' + (errObject.stack ?? ''));
+          Logger.fatal('Global', 'exception: ' + describeError(errObject));
         }
       });
     } catch (e) {
