@@ -170,7 +170,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.67',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.68',
           // 仅声明系统原生支持的常见格式（JPEG/PNG/WebP/GIF/BMP）。
           // 刻意不含 image/avif 与 */* 通配：HarmonyOS API 12 原生解码器不支持 AVIF
           // （AVIF 自 API 26 才支持），若按 Accept 协商出 AVIF 会触发 “Decode image header failed”。
@@ -242,7 +242,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.67',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.68',
           // 与 downloadOnce 一致：仅声明系统原生支持格式，规避 AVIF 协商导致的无解码
           'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
@@ -383,9 +383,9 @@ export class ImageByteCache {
     const detail = describeError(e);
     let hint = '';
     if (fmt === 'avif/heif') {
-      hint = '（疑似 AVIF/HEIF：当前系统解码器不支持，请检查图源是否按 Accept 返回了此类格式）';
+      hint = '（AVIF/HEIF：API 26 起系统原生解码；若仍失败说明数据损坏或不完整）';
     } else if (fmt === 'unknown') {
-      hint = '（字节头无法识别为已知图片格式，可能是 HTML 错误页或加密/损坏数据）';
+      hint = `（字节头无法识别为已知图片格式，可能是 HTML 错误页或加密/损坏数据，前16字节=${ImageByteCache.headHex(buf)}）`;
     }
     return new Error(`图片解码失败[${stage}] 格式=${fmt} ${detail}${hint}`);
   }
@@ -410,10 +410,21 @@ export class ImageByteCache {
     if (n >= 2 && b[0] === 0x42 && b[1] === 0x4D) {
       return 'bmp';
     }
-    // ISOBMFF：4 字节 box size + 'ftyp'，AVIF/HEIF 均以此开头（API 12 原生不支持）
+    // ISOBMFF：4 字节 box size + 'ftyp'，AVIF/HEIF 均以此开头（API 26 起系统原生解码）
     if (n >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) {
       return 'avif/heif';
     }
     return 'unknown';
+  }
+
+  /** 取前 16 字节的十六进制，用于解码失败日志辅助定位 */
+  private static headHex(buf: ArrayBuffer): string {
+    const b = new Uint8Array(buf);
+    const n = Math.min(16, b.length);
+    let s = '';
+    for (let i = 0; i < n; i++) {
+      s += (b[i] < 16 ? '0' : '') + b[i].toString(16) + (i < n - 1 ? ' ' : '');
+    }
+    return s || '(空数据)';
   }
 }

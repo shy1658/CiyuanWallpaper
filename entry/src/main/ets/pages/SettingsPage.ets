@@ -90,7 +90,7 @@ export struct SettingsPage {
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
-          Text('HarmonyOS 版 · v2.11.67')
+          Text('HarmonyOS 版 · v2.11.68')
             .fontSize(11)
             .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })
@@ -162,7 +162,7 @@ export struct SettingsPage {
         }
 
         ListItem() {
-          this.buildRow('关于', '次元壁纸 HarmonyOS 移植版 · 基于 API 12 构建', () => {
+          this.buildRow('关于', '次元壁纸 HarmonyOS 移植版 · 基于 API 26 构建', () => {
             router.pushUrl({ url: 'pages/AboutPage' }).catch(() => { });
           })
         }

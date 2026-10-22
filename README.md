@@ -8,7 +8,7 @@
 > 本项目为**技术学习与移植演示**，与次元壁纸/AWSL 官方无任何关联。
 
 - **包名**：`com.ciyuan.wallpaper`
-- **目标平台**：HarmonyOS NEXT，`compatibleSdkVersion` = `5.0.0(12)`（API 12 及以上）
+- **目标平台**：HarmonyOS NEXT，`compatibleSdkVersion` = `26.0.0(26)`（API 26，需 HarmonyOS 26 及以上设备；v2.11.68 前为 API 12）
 - **默认主图源**：原版官方源 `rank/main`（真实次元壁纸，B 站图床稳定直链）
 
 ---
@@ -66,11 +66,11 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.67.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.68.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.67.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.67.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.68.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.68.hap
 ```
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
@@ -117,6 +117,7 @@ bash build.sh
 
 | 版本 | 关键变更 |
 |---|---|
+| **v2.11.68** | **升级到 API 26（HarmonyOS 26）**：`compatibleSdkVersion`/`targetSdkVersion` 由 `5.0.0(12)` 升至 `26.0.0(26)`（⚠️ 仅支持 HarmonyOS 26 及以上设备），系统 image kit 原生解码 **AVIF/HEIF**——此前 API 12 解不开的格式现在直接可看；解码失败日志对无法识别的格式附带**前 16 字节十六进制**，一眼区分 HTML 错误页与乱码数据 |
 | **v2.11.67** | **彻底修复随机图源「所见非所存」**：①新增「按条目 id 只请求一次」机制——网格、详情、保存、收藏列表全部命中同一份已解析字节，易变源（如 `wp.upx8.com/api.php`、萌鼠动漫等随机接口）一张图绝不二次随机；②`getBytes` 增加**在途请求去重**，同一地址并发只下载一次（网格与详情并发拉取同一随机地址时共享结果）；③`Accept` 头去掉 `image/avif` 与 `*/*` 通配，仅声明系统原生支持的 JPEG/PNG/WebP/GIF/BMP——**根因：HarmonyOS API 12 原生解码器不支持 AVIF（AVIF 自 API 26 才支持），旧头诱导 CDN 协商出 AVIF 触发 `Decode image header failed`**；④解码失败日志现在带**真实格式识别**（如 `格式=avif/heif`），一眼看出是 AVIF 还是损坏数据 |
 | **v2.11.66** | 进一步堵死「裸错误」：抽出统一 `describeError()`，对任意异常值（标准 Error / 裸 `BusinessError` / 字符串 / 数字 / 空值 / 任意对象）都能打出可读细节，日志永不再出现空信息；下载链路为每条失败带出**出错主机**（如 `@ image.coolapk.com`），一眼定位是哪个图床挂了；截断报错也标注主机 |
 | **v2.11.65** | 修复错误日志盲区：网络/解码栈抛出的裸 `BusinessError`（仅含 `code`）原样透传，导致「我的 → 日志」里原图加载失败只显示 `undefined: undefined`。新增 `toError()` 规范化为带 `code` 的标准 Error，`Logger.e` 单独打印 `code=`，真实错误码（如 2300063 超限）不再丢失 |
