@@ -90,7 +90,7 @@ export struct SettingsPage {
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
-          Text('HarmonyOS 版 · v2.11.68')
+          Text('HarmonyOS 版 · v2.11.69')
             .fontSize(11)
             .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })

@@ -1,7 +1,7 @@
 import { http } from '@kit.NetworkKit';
 import { image } from '@kit.ImageKit';
 import { BusinessError } from '@ohos.base';
-import { describeError } from './Logger';
+import { describeError, Logger } from './Logger';
 
 /**
  * 图片字节缓存与加载。
@@ -123,16 +123,70 @@ export class ImageByteCache {
    *    流式是官方唯一能突破 5MB 的方案（本工程 API 12，>5MB 原图靠它救回）。
    */
   private static async download(u: string): Promise<ArrayBuffer> {
+    let buf: ArrayBuffer;
     try {
-      return await ImageByteCache.downloadOnce(u);
+      buf = await ImageByteCache.downloadOnce(u);
     } catch (e) {
       const code = (e as BusinessError).code;
       if (code === 2300063) {
         // Maximum file size exceeded：切流式接收
-        return await ImageByteCache.downloadStream(u);
+        buf = await ImageByteCache.downloadStream(u);
+      } else {
+        throw ImageByteCache.toError(e, ImageByteCache.hostOf(u));
       }
-      throw ImageByteCache.toError(e, ImageByteCache.hostOf(u));
     }
+    return ImageByteCache.deobfuscate(buf);
+  }
+
+  /**
+   * 图片去混淆：部分图源会把图片的每个字节与一个单字节 key 异或（实测不同响应
+   * key 不同：0x54 / 0xA6），系统解码器因此认不出格式，报 "Decode image header failed"。
+   *
+   * 思路：图片格式的魔数是固定的，可由魔数反推出 key 并自校验——
+   * 例如 WebP 文件头恒为 'RIFF'+长度+'WEBP'，共 8 个已知字节；两段各自推导出
+   * 同一个 key 即认定命中，随后整块 XOR 还原。仅在原格式无法识别时才尝试，
+   * 正常图片零影响。
+   */
+  private static deobfuscate(buf: ArrayBuffer): ArrayBuffer {
+    if (!buf || buf.byteLength < 16) {
+      return buf;
+    }
+    if (ImageByteCache.formatHint(buf) !== 'unknown') {
+      return buf; // 格式可识别：未混淆，原样返回
+    }
+    const b = new Uint8Array(buf);
+    // 签名表：[偏移, 期望字节]（RIFF 的 4~7 字节是长度字段，不参与校验）
+    const SIGS: number[][][] = [
+      [[0, 0x52], [1, 0x49], [2, 0x46], [3, 0x46], [8, 0x57], [9, 0x45], [10, 0x42], [11, 0x50]], // RIFF....WEBP
+      [[0, 0xFF], [1, 0xD8], [2, 0xFF]],                                                          // JPEG
+      [[0, 0x89], [1, 0x50], [2, 0x4E], [3, 0x47]],                                               // PNG
+      [[0, 0x47], [1, 0x49], [2, 0x46], [3, 0x38]],                                               // GIF8
+      [[0, 0x42], [1, 0x4D]]                                                                      // BMP
+    ];
+    for (let s = 0; s < SIGS.length; s++) {
+      const sig = SIGS[s];
+      let key = -1;
+      let match = true;
+      for (let i = 0; i < sig.length; i++) {
+        const k = (b[sig[i][0]] ^ sig[i][1]) & 0xFF;
+        if (key < 0) {
+          key = k;
+        } else if (k !== key) {
+          match = false;
+          break;
+        }
+      }
+      if (match && key > 0) {
+        // key=0 视为未混淆（异常巧合），跳过
+        const out = new Uint8Array(buf.byteLength);
+        for (let i = 0; i < out.length; i++) {
+          out[i] = b[i] ^ key;
+        }
+        Logger.i('ImageByteCache', `检测到单字节 XOR 混淆图片（key=0x${key.toString(16)}），已还原 ${buf.byteLength} 字节`);
+        return out.buffer;
+      }
+    }
+    return buf;
   }
 
   /**
@@ -170,7 +224,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.68',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.69',
           // 仅声明系统原生支持的常见格式（JPEG/PNG/WebP/GIF/BMP）。
           // 刻意不含 image/avif 与 */* 通配：HarmonyOS API 12 原生解码器不支持 AVIF
           // （AVIF 自 API 26 才支持），若按 Accept 协商出 AVIF 会触发 “Decode image header failed”。
@@ -242,7 +296,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.68',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.69',
           // 与 downloadOnce 一致：仅声明系统原生支持格式，规避 AVIF 协商导致的无解码
           'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
