@@ -66,11 +66,11 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.64.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.65.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.64.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.64.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.65.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.65.hap
 ```
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
@@ -117,6 +117,7 @@ bash build.sh
 
 | 版本 | 关键变更 |
 |---|---|
+| **v2.11.65** | 修复错误日志盲区：网络/解码栈抛出的裸 `BusinessError`（仅含 `code`）原样透传，导致「我的 → 日志」里原图加载失败只显示 `undefined: undefined`。新增 `toError()` 规范化为带 `code` 的标准 Error，`Logger.e` 单独打印 `code=`，真实错误码（如 2300063 超限）不再丢失 |
 | **v2.11.64** | 修复「保存到本地」扩展名错误：改按**字节魔数**识别真实格式（JPEG/PNG/GIF/WEBP/BMP/TIFF），解决萌鼠动漫等随机源把预览图存成 `.php` 伪后缀的问题；`User-Agent` 同步升级 |
 | **v2.11.63** | 删除「保存到图库」功能（SaveButton 10 秒授权窗口内无法等待大原图下载，易失败）；仅保留「存到本地」；新增**自动错误日志收集**（我的 → 日志，最近 300 条）、**历史浏览记录**（我的 → 历史，按时间倒序）、**关于页**（作者 `@shy1658`、未完全移植声明）；移除相册读写权限 |
 | **v2.11.62** | 修复「保存到图库」超时失败（已随 v2.11.63 整功能删除，作为历史记录保留） |

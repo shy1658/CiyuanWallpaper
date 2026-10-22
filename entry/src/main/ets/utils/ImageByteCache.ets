@@ -40,7 +40,7 @@ export class ImageByteCache {
         ImageByteCache.cache.set(url, buf);
         return buf;
       } catch (e) {
-        lastErr = e as Error;
+        lastErr = ImageByteCache.toError(e);
       }
     }
     throw lastErr;
@@ -79,8 +79,27 @@ export class ImageByteCache {
         // Maximum file size exceeded：切流式接收
         return await ImageByteCache.downloadStream(u);
       }
-      throw e as Error;
+      throw ImageByteCache.toError(e);
     }
+  }
+
+  /**
+   * 把任意捕获到的异常规范化为标准 Error，保证真实错误码（BusinessError.code）
+   * 不丢失——否则裸 BusinessError 透传给 Logger.e 时 name/message 均为 undefined，
+   * 日志会显示 "undefined: undefined"，无法定位是 2300063 超限、网络错误还是其他。
+   * 规范后的 Error.message 形如 "[code 2300063] ..."，Logger 也会单独打印 code=。
+   */
+  private static toError(e: Object): Error {
+    const anyErr = e as BusinessError;
+    const code = anyErr?.code;
+    const emsg = anyErr?.message ?? anyErr?.name;
+    if (code !== undefined && code !== null) {
+      return new Error(`[code ${code}] ${emsg ?? '(无 message)'}`);
+    }
+    if (emsg !== undefined && emsg.length > 0) {
+      return new Error(emsg);
+    }
+    return new Error(String(e));
   }
 
   /** request() 单次下载。maxLimit 仅在 API >= 23 生效（本工程 API 12 忽略此字段，由 2300063 兜底） */
@@ -90,7 +109,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.64',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.65',
           'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
         },
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
@@ -159,7 +178,7 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.64',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.65',
           'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
         },
         // 大文件弱网放宽超时（request() 快路径保持 30s 不变）
@@ -167,7 +186,7 @@ export class ImageByteCache {
       };
       request.requestInStream(u, opts, (err: BusinessError, code: number) => {
         if (err) {
-          finish(() => reject(err));
+          finish(() => reject(ImageByteCache.toError(err)));
         } else if (code !== 200) {
           finish(() => reject(new Error(`http ${code}`)));
         }

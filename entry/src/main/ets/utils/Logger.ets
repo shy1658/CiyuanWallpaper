@@ -1,6 +1,7 @@
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { BusinessError } from '@ohos.base';
 
 /** 单条日志 */
 export interface LogEntry {
@@ -64,9 +65,20 @@ export class Logger {
   static e(tag: string, message: string, error?: Error): void {
     let msg = message;
     if (error) {
-      msg += ` | ${error.name}: ${error.message}`;
-      if (error.stack) {
-        msg += ` | ${error.stack}`;
+      // 容错：网络/解码栈常抛出裸 BusinessError（只有 code、无 name/message/stack），
+      // 若只取 error.name/error.message 会变成 "undefined: undefined"，真实错误码丢失。
+      const code = (error as BusinessError).code;
+      const name = error.name;
+      const emsg = error.message;
+      const stack = error.stack;
+      if (code !== undefined && code !== null) {
+        msg += ` | code=${code}`;
+      }
+      if ((name !== undefined && name.length > 0) || (emsg !== undefined && emsg.length > 0)) {
+        msg += ` | ${name ?? ''}: ${emsg ?? ''}`;
+      }
+      if (stack !== undefined && stack.length > 0) {
+        msg += ` | ${stack}`;
       }
     }
     Logger.getInstance().append('ERROR', tag, msg);
