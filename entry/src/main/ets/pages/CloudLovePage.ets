@@ -269,7 +269,7 @@ struct CloudLovePage {
             ForEach(this.items, (item: WallpaperItem) => {
               ListItem() {
                 Row() {
-                  NetImage({ src: item.thumbUrl, imgWidth: 72, imgHeight: 96, imgRadius: 8 })
+                  NetImage({ src: item.thumbUrl, itemId: item.id, imgWidth: 72, imgHeight: 96, imgRadius: 8 })
                   Column() {
                     Text(item.tags.length > 0 ? item.tags[0] : '云端壁纸')
                       .fontSize(14)

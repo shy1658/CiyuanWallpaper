@@ -27,7 +27,9 @@ export struct WallpaperCard {
     if (!this.item.local) {
       // 缩略图优先用 thumbUrl（更小）；易变源 thumbUrl 恒等于 url，与详情页缓存键一致
       const src = (this.item.thumbUrl && this.item.thumbUrl.length > 0) ? this.item.thumbUrl : this.item.url;
-      ImageByteCache.getBytes(src).then((buf: ArrayBuffer) => {
+      // 按条目 id 取字节：易变源（随机图）一张图只下载一次，网格与详情/保存命中同一份，
+      // 保证“所见即所存”。
+      ImageByteCache.getBytesForItem(this.item.id, src).then((buf: ArrayBuffer) => {
         return ImageByteCache.toPixelMap(buf);
       }).then((pm: image.PixelMap) => {
         this.pixelMap = pm;

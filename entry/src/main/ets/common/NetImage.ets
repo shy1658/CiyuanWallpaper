@@ -9,6 +9,8 @@ import { ImageByteCache } from '../utils/ImageByteCache';
 @Component
 export struct NetImage {
   @Prop src: string = '';
+  /** 条目 id（可选）：传入后与网格/详情共用同一次下载，保证易变源“所见即所存” */
+  @Prop itemId: string = '';
   @Prop imgWidth: Length = '100%';
   @Prop imgHeight: Length = '100%';
   @Prop imgRadius: number = 8;
@@ -17,7 +19,7 @@ export struct NetImage {
 
   aboutToAppear(): void {
     if (this.src && this.src.length > 0) {
-      ImageByteCache.getBytes(this.src).then((buf: ArrayBuffer) => {
+      ImageByteCache.getBytesForItem(this.itemId, this.src).then((buf: ArrayBuffer) => {
         return ImageByteCache.toPixelMap(buf);
       }).then((pm: image.PixelMap) => {
         this.pixelMap = pm;

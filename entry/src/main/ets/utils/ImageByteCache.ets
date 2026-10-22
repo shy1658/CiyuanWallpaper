@@ -18,7 +18,25 @@ import { describeError } from './Logger';
 export class ImageByteCache {
   private static cache: Map<string, ArrayBuffer> = new Map();
 
-  /** 取图片二进制：命中缓存直接返回；否则按候选地址依次尝试（https→http 回退） */
+  /**
+   * 已解析字节的稳定缓存：以「条目 id + 地址」为键。
+   * 易变图源（随机图接口，每次请求同地址返回不同图）一张图只请求一次：
+   * 网格、详情、保存、收藏列表全部命中同一份字节，保证“所见即所存”。
+   * 会话内不主动淘汰，同一条目在会话内无论怎样刷新都复用首次结果。
+   */
+  private static resolved: Map<string, ArrayBuffer> = new Map();
+
+  /**
+   * 在途请求去重：同一地址并发请求只下载一次。
+   * 对易变图源尤为关键——网格与详情页若并发请求同一 api.php 地址，
+   * 必须共享同一次下载结果，否则会各自拿到不同的随机图，破坏“所见即所存”。
+   */
+  private static inflight: Map<string, Promise<ArrayBuffer>> = new Map();
+
+  /**
+   * 取图片二进制：命中缓存直接返回；否则按候选地址依次尝试（https→http 回退）。
+   * 同一地址并发请求通过 inflight 去重，只下载一次（见类字段说明）。
+   */
   static async getBytes(url: string): Promise<ArrayBuffer> {
     if (!url || url.length === 0) {
       throw new Error('empty image url');
@@ -27,24 +45,57 @@ export class ImageByteCache {
     if (hit) {
       return hit;
     }
-    const candidates = ImageByteCache.candidates(url);
-    let lastErr: Error = new Error('image download failed');
-    for (const u of candidates) {
-      const cached = ImageByteCache.cache.get(u);
-      if (cached) {
-        ImageByteCache.cache.set(url, cached);
-        return cached;
-      }
-      try {
-        const buf = await ImageByteCache.download(u);
-        ImageByteCache.cache.set(u, buf);
-        ImageByteCache.cache.set(url, buf);
-        return buf;
-      } catch (e) {
-        lastErr = ImageByteCache.toError(e, ImageByteCache.hostOf(u));
-      }
+    // 在途去重：并发请求共享同一次下载
+    const existing = ImageByteCache.inflight.get(url);
+    if (existing) {
+      return existing;
     }
-    throw lastErr;
+    const task: Promise<ArrayBuffer> = (async (): Promise<ArrayBuffer> => {
+      const candidates = ImageByteCache.candidates(url);
+      let lastErr: Error = new Error('image download failed');
+      for (const u of candidates) {
+        const cached = ImageByteCache.cache.get(u);
+        if (cached) {
+          ImageByteCache.cache.set(url, cached);
+          return cached;
+        }
+        try {
+          const buf = await ImageByteCache.download(u);
+          ImageByteCache.cache.set(u, buf);
+          ImageByteCache.cache.set(url, buf);
+          return buf;
+        } catch (e) {
+          lastErr = ImageByteCache.toError(e, ImageByteCache.hostOf(u));
+        }
+      }
+      throw lastErr;
+    })();
+    ImageByteCache.inflight.set(url, task);
+    try {
+      return await task;
+    } finally {
+      ImageByteCache.inflight.delete(url);
+    }
+  }
+
+  /**
+   * 按壁纸条目取字节：在 getBytes 之上，额外以「条目 id + 地址」为键缓存已解析字节。
+   * 对易变图源（随机图接口）保证“一张图只请求一次”：网格、详情、保存、收藏列表
+   * 全部命中同一份字节，彻底杜绝“预览与保存不是同一张图”的随机错位。
+   * id 为空（调用方无条目上下文）时退化为纯 URL 缓存。
+   */
+  static async getBytesForItem(id: string, url: string): Promise<ArrayBuffer> {
+    if (!url || url.length === 0) {
+      throw new Error('empty image url');
+    }
+    const key = (id && id.length > 0) ? `${id}#${url}` : url;
+    const resolved = ImageByteCache.resolved.get(key);
+    if (resolved) {
+      return resolved;
+    }
+    const buf = await ImageByteCache.getBytes(url);
+    ImageByteCache.resolved.set(key, buf);
+    return buf;
   }
 
   /** 候选地址：优先尝试 https（无需明文许可），再回退另一协议 */
@@ -119,8 +170,11 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.66',
-          'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.67',
+          // 仅声明系统原生支持的常见格式（JPEG/PNG/WebP/GIF/BMP）。
+          // 刻意不含 image/avif 与 */* 通配：HarmonyOS API 12 原生解码器不支持 AVIF
+          // （AVIF 自 API 26 才支持），若按 Accept 协商出 AVIF 会触发 “Decode image header failed”。
+          'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
         // API >= 23 时显式放行 64MB（默认仅 5MB）；API < 23 无效，超限走流式
@@ -188,8 +242,9 @@ export class ImageByteCache {
       const opts: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.66',
-          'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) CiyuanWallpaper/2.11.67',
+          // 与 downloadOnce 一致：仅声明系统原生支持格式，规避 AVIF 协商导致的无解码
+          'Accept': 'image/jpeg,image/png,image/webp,image/gif,image/bmp'
         },
         // 大文件弱网放宽超时（request() 快路径保持 30s 不变）
         readTimeout: 60000
@@ -262,12 +317,23 @@ export class ImageByteCache {
    * 调用方应把它当作“可用于保存的字节”，未通过校验的数据绝不落盘。
    */
   static async getBytesValidated(url: string): Promise<ArrayBuffer> {
-    const first = await ImageByteCache.getBytes(url);
+    return await ImageByteCache.getBytesValidatedForItem('', url);
+  }
+
+  /**
+   * 带条目上下文的完整性校验版本：与 getBytesForItem 共用「id + 地址」缓存，
+   * 截断重试时同步清除已解析缓存，避免重试仍命中坏数据。
+   */
+  static async getBytesValidatedForItem(id: string, url: string): Promise<ArrayBuffer> {
+    const key = (id && id.length > 0) ? `${id}#${url}` : url;
+    const first = await ImageByteCache.getBytesForItem(id, url);
     if (ImageByteCache.isComplete(first)) {
       return first;
     }
+    // 首份不完整（移动网络截断）：清掉坏数据后重试一次
     ImageByteCache.evict(url);
-    const second = await ImageByteCache.getBytes(url);
+    ImageByteCache.resolved.delete(key);
+    const second = await ImageByteCache.getBytesForItem(id, url);
     if (ImageByteCache.isComplete(second)) {
       return second;
     }
@@ -282,7 +348,12 @@ export class ImageByteCache {
    * 注意：只影响预览渲染；保存始终使用原始字节，画质不受影响。
    */
   static async toPixelMapScaled(buf: ArrayBuffer, maxSide: number): Promise<image.PixelMap> {
-    const source = image.createImageSource(buf);
+    let source: image.ImageSource;
+    try {
+      source = image.createImageSource(buf);
+    } catch (e) {
+      throw ImageByteCache.decodeError(e, buf, 'createImageSource');
+    }
     let width = 0;
     let height = 0;
     try {
@@ -293,12 +364,56 @@ export class ImageByteCache {
       // 取不到尺寸信息：按原尺寸解码
     }
     const longSide = Math.max(width, height);
-    if (width <= 0 || height <= 0 || longSide <= maxSide) {
-      return await source.createPixelMap();
+    try {
+      if (width <= 0 || height <= 0 || longSide <= maxSide) {
+        return await source.createPixelMap();
+      }
+      const scale = maxSide / longSide;
+      const dw = Math.max(1, Math.round(width * scale));
+      const dh = Math.max(1, Math.round(height * scale));
+      return await source.createPixelMap({ desiredSize: { width: dw, height: dh } });
+    } catch (e) {
+      throw ImageByteCache.decodeError(e, buf, 'createPixelMap');
     }
-    const scale = maxSide / longSide;
-    const dw = Math.max(1, Math.round(width * scale));
-    const dh = Math.max(1, Math.round(height * scale));
-    return await source.createPixelMap({ desiredSize: { width: dw, height: dh } });
+  }
+
+  /** 把解码失败规范化为带“真实格式”的可读错误，便于日志定位（如 AVIF 协商） */
+  private static decodeError(e: Object, buf: ArrayBuffer, stage: string): Error {
+    const fmt = ImageByteCache.formatHint(buf);
+    const detail = describeError(e);
+    let hint = '';
+    if (fmt === 'avif/heif') {
+      hint = '（疑似 AVIF/HEIF：当前系统解码器不支持，请检查图源是否按 Accept 返回了此类格式）';
+    } else if (fmt === 'unknown') {
+      hint = '（字节头无法识别为已知图片格式，可能是 HTML 错误页或加密/损坏数据）';
+    }
+    return new Error(`图片解码失败[${stage}] 格式=${fmt} ${detail}${hint}`);
+  }
+
+  /** 按文件头魔数粗略识别图片格式，识别不出返回 'unknown' */
+  private static formatHint(buf: ArrayBuffer): string {
+    const b = new Uint8Array(buf);
+    const n = b.length;
+    if (n >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) {
+      return 'jpeg';
+    }
+    if (n >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) {
+      return 'png';
+    }
+    if (n >= 4 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) {
+      return 'gif';
+    }
+    if (n >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
+      return 'webp';
+    }
+    if (n >= 2 && b[0] === 0x42 && b[1] === 0x4D) {
+      return 'bmp';
+    }
+    // ISOBMFF：4 字节 box size + 'ftyp'，AVIF/HEIF 均以此开头（API 12 原生不支持）
+    if (n >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) {
+      return 'avif/heif';
+    }
+    return 'unknown';
   }
 }

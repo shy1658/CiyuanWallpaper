@@ -148,7 +148,8 @@ struct DetailPage {
 
   /** 加载单个地址：完整性校验 + 缩小解码；任一步失败即抛错，由调用方决定是否换源 */
   private async loadSource(u: string): Promise<PreviewResult> {
-    const buf = await ImageByteCache.getBytesValidated(u);
+    // 按条目 id 取字节：易变源（随机图）一张图只下载一次，网格/详情/保存共用同一份
+    const buf = await ImageByteCache.getBytesValidatedForItem(this.item!.id, u);
     // 预览按 2048 长边缩小解码：避免大图超出 GPU 纹理上限导致解码失败
     const pm = await ImageByteCache.toPixelMapScaled(buf, 2048);
     return { buf: buf, pm: pm };
@@ -222,7 +223,7 @@ struct DetailPage {
       let lastErr: Error = new Error('image download failed');
       for (let i = 0; i < order.length; i++) {
         try {
-          const buf = await ImageByteCache.getBytesValidated(order[i]);
+          const buf = await ImageByteCache.getBytesValidatedForItem(this.item!.id, order[i]);
           if (i > 0) {
             this.usedFallbackBuffer = true;
           }

@@ -102,8 +102,9 @@ export class ImageSaveUtil {
     let lastErr: Error = new Error('image download failed');
     for (const u of candidates) {
       try {
-        // 校验完整性后再返回：截断数据绝不落盘
-        return await ImageByteCache.getBytesValidated(u);
+        // 校验完整性后再返回：截断数据绝不落盘。
+        // 按条目 id 取字节：与网格/详情共用同一份解析结果，保证“所见即所存”。
+        return await ImageByteCache.getBytesValidatedForItem(item.id, u);
       } catch (e) {
         lastErr = e as Error;
       }
