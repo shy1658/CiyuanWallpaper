@@ -2,6 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/shy1658/CiyuanWallpaper?label=%E7%89%88%E6%9C%AC&logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/shy1658/CiyuanWallpaper/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases)
+[![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-shy1658-ff69b4)](https://afdian.com/a/shy1658)
 
 > 把 Android 二次元壁纸 App「次元壁纸 / AWSL」（`me.alzz.awsl` v2.11.5）移植到 HarmonyOS 的第三方实现。
 > 使用 **ArkTS + ArkUI** 编写，产物是一个可直接 `hdc app install` 安装的 `.hap`。
@@ -163,8 +164,24 @@ CiyuanWallpaper/
 
 ---
 
+## ☕ 支持本项目
+
+这个项目是我个人业余时间做的，从逆向协议、跨端适配、图像解码到原生库交叉编译，花了不少时间和精力。
+如果它对你有用，欢迎请我喝杯咖啡 —— **每一份赞助都会直接用于服务器、签名与构建环境的开销**。
+
+**[爱发电 · shy1658](https://afdian.com/a/shy1658)**
+
+- 🧧 自愿赞助，**金额随缘**，一杯奶茶的鼓励就足够；
+- 💸 捐赠**不购买任何功能优先级**，不承诺定制开发，也不影响 Issue 处理顺序；
+- 🔒 通过爱发电平台代收代结算，**个人收款码不会出现在仓库或应用中**；
+- 📖 资金使用情况会不定期在本节更新说明。
+
+也可以纯靠 Star、Issue 反馈、推广和提交 PR 来支持 —— 这对项目同样重要。
+
+---
+
 ## 许可与声明
 
-- 本项目为**技术学习与移植演示**，与麦当劳、次元壁纸/AWSL 官方无任何关联。
+- 本项目为**技术学习与移植演示**，与次元壁纸/AWSL 官方无任何关联。
 - 内置壁纸来自公开图源，版权归原作者所有；如需商用请替换为自有素材。
 - 逆向过程存档见 [`docs/REVERSE_NOTES.md`](docs/REVERSE_NOTES.md)。
