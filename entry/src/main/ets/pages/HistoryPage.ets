@@ -55,7 +55,7 @@ struct HistoryPage {
             .fontSize(14)
             .fontColor($r('app.color.primary_dark'))
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-            .backgroundColor('#150084FF')
+            .backgroundColor($r('app.color.tag_background'))
             .borderRadius(14)
             .onClick(() => {
               HistoryStore.getInstance().clear();

@@ -24,12 +24,12 @@ struct LogsPage {
     this.loading = false;
   }
 
-  private levelColor(level: string): string {
+  private levelColor(level: string): ResourceColor {
     switch (level) {
-      case 'FATAL': return '#FFE75480';
-      case 'ERROR': return '#FFE53935';
+      case 'FATAL': return $r('app.color.error_color');
+      case 'ERROR': return $r('app.color.error_color');
       case 'WARN': return '#FFFF9800';
-      default: return '#FF6B7785';
+      default: return $r('app.color.placeholder_text');
     }
   }
 
@@ -68,7 +68,7 @@ struct LogsPage {
           .fontSize(14)
           .fontColor($r('app.color.primary_dark'))
           .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-          .backgroundColor('#150084FF')
+          .backgroundColor($r('app.color.tag_background'))
           .borderRadius(14)
           .onClick(() => {
             Logger.getInstance().clear();

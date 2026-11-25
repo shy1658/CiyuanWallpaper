@@ -43,6 +43,34 @@
     {
       "name": "tab_inactive",
       "value": "#B8B8C4"
+    },
+    {
+      "name": "error_color",
+      "value": "#FFE75480"
+    },
+    {
+      "name": "input_background",
+      "value": "#FFF2F4F7"
+    },
+    {
+      "name": "skeleton_background",
+      "value": "#FFE8EAED"
+    },
+    {
+      "name": "placeholder_text",
+      "value": "#FF9AA0A6"
+    },
+    {
+      "name": "on_primary",
+      "value": "#FFFFFFFF"
+    },
+    {
+      "name": "tag_background",
+      "value": "#150084FF"
+    },
+    {
+      "name": "overlay_scrim",
+      "value": "#66000000"
     }
   ]
 }

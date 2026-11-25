@@ -86,7 +86,7 @@ struct LoginPage {
         TextInput({ placeholder: '账号' })
           .height(48)
           .fontSize(15)
-          .backgroundColor('#FFF2F4F7')
+          .backgroundColor($r('app.color.input_background'))
           .borderRadius(12)
           .padding({ left: 14, right: 14 })
           .margin({ top: 28 })
@@ -98,7 +98,7 @@ struct LoginPage {
           .type(InputType.Password)
           .height(48)
           .fontSize(15)
-          .backgroundColor('#FFF2F4F7')
+          .backgroundColor($r('app.color.input_background'))
           .borderRadius(12)
           .padding({ left: 14, right: 14 })
           .margin({ top: 12 })
@@ -110,7 +110,7 @@ struct LoginPage {
         if (this.errorMsg.length > 0) {
           Text(this.errorMsg)
             .fontSize(12)
-            .fontColor('#FFE75480')
+            .fontColor($r('app.color.error_color'))
             .width('100%')
             .margin({ top: 10 })
         }
@@ -118,7 +118,7 @@ struct LoginPage {
         Button() {
           Text(this.loading ? '登录中...' : '登 录')
             .fontSize(16)
-            .fontColor('#FFFFFFFF')
+            .fontColor($r('app.color.on_primary'))
         }
         .height(48)
         .width('100%')

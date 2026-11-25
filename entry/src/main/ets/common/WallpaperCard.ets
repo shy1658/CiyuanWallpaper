@@ -63,19 +63,19 @@ export struct WallpaperCard {
         Column() {
           Text('加载失败')
             .fontSize(11)
-            .fontColor('#FF9AA0A6')
+            .fontColor($r('app.color.placeholder_text'))
         }
         .width('100%')
         .height(this.heightFor(this.index))
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('#FFE8EAED')
+        .backgroundColor($r('app.color.skeleton_background'))
         .borderRadius(14)
       } else {
         // 字节下载中占位
         Column()
           .width('100%')
           .height(this.heightFor(this.index))
-          .backgroundColor('#FFF2F4F7')
+          .backgroundColor($r('app.color.input_background'))
           .borderRadius(14)
       }
       // 底部来源标签
@@ -84,7 +84,7 @@ export struct WallpaperCard {
           .fontSize(9)
           .fontColor('#FFFFFFFF')
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-          .backgroundColor('#66000000')
+          .backgroundColor($r('app.color.overlay_scrim'))
           .borderRadius(6)
           .margin({ left: 8, bottom: 8 })
       }

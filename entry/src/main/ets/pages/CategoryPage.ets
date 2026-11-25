@@ -85,7 +85,7 @@ export struct CategoryPage {
           ForEach(this.categories, (cat: CategoryChip) => {
             Text(cat.name)
               .fontSize(13)
-              .fontColor(this.activeCategory === cat.id ? '#FFFFFFFF' : $r('app.color.text_secondary'))
+              .fontColor(this.activeCategory === cat.id ? $r('app.color.on_primary') : $r('app.color.text_secondary'))
               .padding({ left: 14, right: 14, top: 7, bottom: 7 })
               .backgroundColor(this.activeCategory === cat.id ? $r('app.color.primary') : $r('app.color.card_background'))
               .borderRadius(16)

@@ -428,7 +428,7 @@ struct DetailPage {
           }
           .height(46)
           .layoutWeight(1)
-          .backgroundColor('#FFFFFFFF')
+          .backgroundColor($r('app.color.card_background'))
           .borderRadius(23)
           .onClick(() => {
             this.onFavoriteClick();

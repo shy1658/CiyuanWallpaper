@@ -42,7 +42,7 @@ export struct NetImage {
       Column()
         .width(this.imgWidth)
         .height(this.imgHeight)
-        .backgroundColor(this.failed ? '#FFE8EAED' : '#FFF2F4F7')
+        .backgroundColor(this.failed ? $r('app.color.skeleton_background') : $r('app.color.input_background'))
         .borderRadius(this.imgRadius)
     }
   }

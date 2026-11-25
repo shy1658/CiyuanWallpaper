@@ -1,9 +1,11 @@
 import { router } from '@kit.ArkUI';
 import { promptAction } from '@kit.ArkUI';
+import { ConfigurationConstant, common } from '@kit.AbilityKit';
 import { WallpaperStore } from '../viewmodel/WallpaperStore';
 import { AuthStore } from '../utils/AuthStore';
 import { HistoryStore } from '../utils/HistoryStore';
 import { Logger } from '../utils/Logger';
+import { ThemeStore, APPSTORAGE_COLOR_MODE } from '../utils/ThemeStore';
 
 /**
  * 我的 / 设置页
@@ -17,8 +19,12 @@ export struct SettingsPage {
   @State sourceCount: number = 0;
   @State historyCount: number = 0;
   @State logCount: number = 0;
+  /** 外观模式（订阅 AppStorage，随系统/手动切换实时更新） */
+  @StorageLink(APPSTORAGE_COLOR_MODE) themeMode: ConfigurationConstant.ColorMode =
+    ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
   private store: WallpaperStore = WallpaperStore.getInstance();
   private authStore: AuthStore = AuthStore.getInstance();
+  private themeStore: ThemeStore = ThemeStore.getInstance();
   private listenerRegistered: boolean = false;
 
   /** 同步登录态与图源数量到 UI 状态 */
@@ -31,6 +37,48 @@ export struct SettingsPage {
     this.favoriteCount = this.store.getFavorites().length;
     this.historyCount = HistoryStore.getInstance().getAll().length;
     this.logCount = Logger.getInstance().count();
+    this.themeMode = this.themeStore.getMode();
+  }
+
+  /** 外观模式中文描述 */
+  private themeLabel(): string {
+    const mode = this.themeStore.getMode();
+    if (mode === ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT) {
+      return '浅色模式';
+    }
+    if (mode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK) {
+      return '深色模式';
+    }
+    return '跟随系统';
+  }
+
+  /** 弹出外观选择对话框（跟随系统 / 浅色 / 深色） */
+  private onThemeRowClick(): void {
+    const ctx = getContext(this) as common.UIAbilityContext;
+    promptAction.showDialog({
+      title: '外观',
+      message: '选择应用配色方式，可跟随系统深浅色自动切换',
+      buttons: [
+        { text: '跟随系统', color: $r('app.color.text_secondary') },
+        { text: '浅色模式', color: $r('app.color.text_secondary') },
+        { text: '深色模式', color: $r('app.color.error_color') }
+      ]
+    }).then((dialogResult: promptAction.ShowDialogSuccessResponse) => {
+      let target: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+      if (dialogResult.index === 1) {
+        target = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
+      } else if (dialogResult.index === 2) {
+        target = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
+      }
+      this.themeStore.setMode(target, ctx)
+        .then(() => {
+          this.themeMode = target;
+          promptAction.showToast({ message: `已切换为${this.themeLabel()}`, duration: 1200 });
+        })
+        .catch(() => {
+          promptAction.showToast({ message: '切换失败，请重试', duration: 1500 });
+        });
+    }).catch(() => { });
   }
 
   onShow(): void {
@@ -60,10 +108,10 @@ export struct SettingsPage {
       title: '退出登录',
       message: `当前账号：${this.username}，退出后需重新登录才能查看云端收藏`,
       buttons: [
-        { text: '取消', color: '#FF8C8C99' },
+        { text: '取消', color: $r('app.color.text_secondary') },
         {
           text: '退出',
-          color: '#FFE75480'
+          color: $r('app.color.error_color')
         }
       ]
     }).then((dialogResult: promptAction.ShowDialogSuccessResponse) => {
@@ -87,7 +135,7 @@ export struct SettingsPage {
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
-          Text('HarmonyOS 版 · v2.11.76')
+          Text('HarmonyOS 版 · v2.11.77')
             .fontSize(11)
             .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })
@@ -136,6 +184,13 @@ export struct SettingsPage {
         ListItem() {
           this.buildRow('日志', this.logCount > 0 ? `未读 ${this.logCount} 条` : '自动收集运行错误', () => {
             router.pushUrl({ url: 'pages/LogsPage' }).catch(() => { });
+          })
+        }
+
+        // 外观（浅色 / 深色 / 跟随系统）
+        ListItem() {
+          this.buildRow('外观', this.themeLabel(), () => {
+            this.onThemeRowClick();
           })
         }
 

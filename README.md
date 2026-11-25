@@ -36,10 +36,24 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 | **本地收藏** | 收藏夹持久化，断网可用 |
 | **壁纸源管理** | 内置源**逐项开关**（默认仅「次元壁纸」启用）+ **自定义图源自由添加/删除**，持久化并热生效 |
 | **预置壁纸** | 24 张内置二次元壁纸，断网可浏览 |
-| **设置页** | 账号行、云端入口、壁纸源入口、清空缓存 |
+| **外观主题** | **浅色 / 深色 / 跟随系统**三档切换，「我的 → 外观」即时生效并持久化 |
+| **设置页** | 账号行、云端入口、外观入口、壁纸源入口、日志入口 |
 
 **「所见即所存」**：预览与保存共用同一份预下载字节（解码为 PixelMap 渲染），
 保证点开大图看到的、和最终保存下来的，是同一张图——不会出现「预览与保存不是同一张」。
+
+**深浅色适配**：采用 HarmonyOS 官方推荐的**资源限定符**方案 —— 浅色值放在
+`resources/base/element/color.json`，深色值放在 `resources/dark/element/color.json`，
+代码中一律用 `$r('app.color.xxx')` 引用，切换时系统自动重新解析资源并刷新界面。
+应用内通过 `ApplicationContext.setColorMode()` 覆盖为
+`COLOR_MODE_LIGHT` / `COLOR_MODE_DARK`，选「跟随系统」时置回 `COLOR_MODE_NOT_SET`，
+随系统深浅色自动联动（此时系统深浅色变化会回调 `onConfigurationUpdate`）。
+所有界面颜色均已改为资源引用，**无硬编码色值残留**；仅详情页浮在壁纸之上的
+半透明遮罩层保留固定配色（那是叠在图片上的，不随主题变化）。
+
+三项官方必需适配均已完成：**颜色资源**（base/dark 双份 `color.json`，18 个语义色一一对应）、
+**媒体资源**（`dark/media/` 深色版 tab 图标）、**状态栏**（`setWindowSystemBarProperties`
+同步状态栏底色与图标明暗，深色下不再出现白底黑字的割裂感）。
 
 ---
 
@@ -118,6 +132,7 @@ bash build.sh
 
 | 版本 | 关键变更 |
 |---|---|
+| **v2.11.77** | **新增深浅色主题（浅色 / 深色 / 跟随系统）**：①新增 `resources/dark/element/color.json` 深色色板，与 `base` 目录**同名资源**一一对应（18 个语义色），系统按当前颜色模式自动解析（官方推荐的资源限定符方案，零代码切换）；②新增 `ThemeStore`（用户首选项持久化三态）+ `ApplicationContext.setColorMode()`（API 12 起可用，正好匹配本项目最低 API 12），`「我的 → 外观」`弹窗三选一，**即时生效 + 重启保留**；③`EntryAbility.onWindowStageCreate` 中先读偏好、`loadContent` 成功后再 `setColorMode`（SDK 要求窗口与页面已创建才能调用），避免启动瞬间闪一下默认浅色；④实现 `onConfigurationUpdate` 监听 + `AppStorage` 状态同步，**「跟随系统」状态下系统切深浅色可实时联动**（手动锁定时 `setColorMode` 覆盖生效，不会被系统改回）；⑤清理 **30+ 处硬编码色值**（输入框底色、骨架屏占位、错误提示、按钮文字、日志级别色、标签底色等）全部改为 `$r('app.color.*')` 引用，并新增 `error_color` / `input_background` / `skeleton_background` / `placeholder_text` / `on_primary` / `tag_background` / `overlay_scrim` 等语义色，深浅两套各自定义；⑥新增 `resources/dark/media/` 深色版 tab 图标（粉色提亮至 `#FF8FB0`、灰色压暗至 `#6E6E7C`），深色下 tab bar 观感协调；⑦**状态栏适配**（官方深浅色三项必需适配之一）：`setWindowSystemBarProperties` 同步状态栏/导航栏底色与图标明暗，深色下不再出现白底黑字的割裂感；⑧详情页全屏预览浮层保留固定配色（半透明遮罩叠在壁纸之上，不应随主题变化） |
 | **v2.11.76** | **精简「我的」页面**：移除「我的上传」与「清理缓存」两个入口，并清理其关联的 `clearCache()` 实现、`cacheCleared` 状态与 `common`/`fileIo` 依赖；账号行副标题由「登录后可查看云端收藏与我的上传」改为「登录后可查看云端收藏」 |
 | **v2.11.75** | **修复 `2300007 Failed to connect` —— 不再强行把 http 升级为 https**：官方列表约一半图址是 `http://`，其中 13th.tech 系列图床（`lux1` / `kha` / `bitiful` / `super` / `qn`）**只监听 80 端口，443 直接 No route to host**。旧逻辑把 `http://` 强改为 `https://` 先试，必然连接失败；v2.11.73 又把 `2300007` 误判为"不可救"直接终止，导致原图永远拿不到（缩略图恰在支持 https 的主机，所以只有原图失败）。现改为**尊重源站协议**（http 就先用 http），另一协议仅在"连接层错误"（2300007 / TLS 证书类）时才作为备选；DNS 失败（2300006）、超时（2300028）、HTTP 状态码错误均不再换协议重试 |
 | **v2.11.74** | **修复网格预览「偏色」（红蓝通道互换）**：HarmonyOS `PixelMap` 创建接口默认按 **BGRA_8888** 解释输入缓冲区，即使声明 `RGBA_8888` 也可能被底层按 BGRA 处理。此前原生模块用 turbojpeg/libavif 输出 **RGBA** 再声明 `RGBA_8888`，导致 R/B 互换（缩略图偏色，而走系统解码的详情原图正常）。现全链路统一 **BGRA_8888**：turbojpeg `TJPF_BGRA`、libavif `AVIF_RGB_FORMAT_BGRA`、`SetPixelFormat` + 显式 `SetSrcPixelFormat` |

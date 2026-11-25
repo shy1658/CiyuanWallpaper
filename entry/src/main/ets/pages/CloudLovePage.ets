@@ -204,7 +204,7 @@ struct CloudLovePage {
             .height(44)
             .width('60%')
             .fontSize(15)
-            .fontColor('#FFFFFFFF')
+            .fontColor($r('app.color.on_primary'))
             .backgroundColor($r('app.color.primary_dark'))
             .borderRadius(22)
             .margin({ top: 16 })
@@ -223,7 +223,7 @@ struct CloudLovePage {
               ForEach(this.groups, (name: string) => {
                 Text(name === '' ? '全部收藏' : name)
                   .fontSize(13)
-                  .fontColor(this.activeGroup === name ? '#FFFFFFFF' : $r('app.color.text_secondary'))
+                  .fontColor(this.activeGroup === name ? $r('app.color.on_primary') : $r('app.color.text_secondary'))
                   .padding({ left: 14, right: 14, top: 7, bottom: 7 })
                   .backgroundColor(this.activeGroup === name ? $r('app.color.primary') : $r('app.color.card_background'))
                   .borderRadius(16)
@@ -245,7 +245,7 @@ struct CloudLovePage {
         if (this.errorMsg.length > 0) {
           Text(this.errorMsg)
             .fontSize(12)
-            .fontColor('#FFE75480')
+            .fontColor($r('app.color.error_color'))
             .width('100%')
             .padding({ left: 16, right: 16, top: 8 })
         }

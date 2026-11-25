@@ -1,0 +1,76 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#FF12121A"
+    },
+    {
+      "name": "primary",
+      "value": "#FF6B9D"
+    },
+    {
+      "name": "primary_dark",
+      "value": "#FFF2608D"
+    },
+    {
+      "name": "primary_light",
+      "value": "#FF3A2A33"
+    },
+    {
+      "name": "background",
+      "value": "#FF12121A"
+    },
+    {
+      "name": "card_background",
+      "value": "#FF1E1E26"
+    },
+    {
+      "name": "text_primary",
+      "value": "#FFEDEDF2"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#FF9A9AA8"
+    },
+    {
+      "name": "divider",
+      "value": "#FF2C2C36"
+    },
+    {
+      "name": "tab_active",
+      "value": "#FF6B9D"
+    },
+    {
+      "name": "tab_inactive",
+      "value": "#FF6E6E7C"
+    },
+    {
+      "name": "error_color",
+      "value": "#FFFF7A85"
+    },
+    {
+      "name": "input_background",
+      "value": "#FF26262F"
+    },
+    {
+      "name": "skeleton_background",
+      "value": "#FF26262F"
+    },
+    {
+      "name": "placeholder_text",
+      "value": "#FF7A7A88"
+    },
+    {
+      "name": "on_primary",
+      "value": "#FFFFFFFF"
+    },
+    {
+      "name": "tag_background",
+      "value": "#FF1F2A3D"
+    },
+    {
+      "name": "overlay_scrim",
+      "value": "#66000000"
+    }
+  ]
+}

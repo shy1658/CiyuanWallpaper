@@ -185,7 +185,7 @@ struct SourceManagePage {
                 .layoutWeight(1)
                 Text('删除')
                   .fontSize(13)
-                  .fontColor('#FFE75480')
+                  .fontColor($r('app.color.error_color'))
                   .padding({ left: 12, right: 4 })
                   .onClick(() => {
                     this.onRemoveClick(source).catch(() => { });
@@ -206,7 +206,7 @@ struct SourceManagePage {
             TextInput({ placeholder: '名称（留空则取域名）' })
               .height(44)
               .fontSize(14)
-              .backgroundColor('#FFF2F4F7')
+              .backgroundColor($r('app.color.input_background'))
               .borderRadius(10)
               .padding({ left: 12, right: 12 })
               .onChange((value: string) => {
@@ -215,7 +215,7 @@ struct SourceManagePage {
             TextInput({ placeholder: 'API 地址，如 https://example.com/random.php' })
               .height(44)
               .fontSize(14)
-              .backgroundColor('#FFF2F4F7')
+              .backgroundColor($r('app.color.input_background'))
               .borderRadius(10)
               .padding({ left: 12, right: 12 })
               .margin({ top: 10 })
@@ -226,7 +226,7 @@ struct SourceManagePage {
               .height(44)
               .width('100%')
               .fontSize(15)
-              .fontColor('#FFFFFFFF')
+              .fontColor($r('app.color.on_primary'))
               .backgroundColor($r('app.color.primary_dark'))
               .borderRadius(22)
               .margin({ top: 12 })
