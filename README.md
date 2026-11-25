@@ -81,12 +81,14 @@ App 内保留了原版账号体系的登录与云端收藏入口，但**目前�
 
 **直接下载安装包**（推荐，免构建）：
 
-[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.76.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/latest)
+[![下载 HAP](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-CiyuanWallpaper--v2.11.77.hap-0A84FF?logo=github)](https://github.com/shy1658/CiyuanWallpaper/releases/download/v2.11.77/CiyuanWallpaper-v2.11.77.hap)
 
 ```bash
-# 下载 Release 中的 CiyuanWallpaper-v2.11.76.hap 后，用 hdc 安装（设备需开启开发者模式）
-hdc app install CiyuanWallpaper-v2.11.76.hap
+# 下载 Release 中的 CiyuanWallpaper-v2.11.77.hap 后，用 hdc 安装（设备需开启开发者模式）
+hdc app install CiyuanWallpaper-v2.11.77.hap
 ```
+
+> 也可访问 [Releases 最新版](https://github.com/shy1658/CiyuanWallpaper/releases/latest) 下载。
 
 也可从源码构建后安装 `entry/build/default/outputs/default/entry-default-signed.hap`。
 启动后 App 名为「次元壁纸」。壁纸统一通过「存到本地」落盘到 Download 目录，免申请相册写入权限。
